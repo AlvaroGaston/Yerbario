@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="es-AR" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Yerbario · Mi diario de yerba mate</title>
+  <meta name="description" content="Anotá, clasificá y opiná sobre las yerbas mate que vas probando.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <script>
+    /* Aplica el tema antes de pintar para evitar el parpadeo */
+    try {
+      var t = localStorage.getItem('yerbario-theme');
+      if (!t && window.matchMedia('(prefers-color-scheme: dark)').matches) t = 'dark';
+      if (t) document.documentElement.dataset.theme = t;
+    } catch (e) {}
+  </script>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark" aria-hidden="true">🧉</span>
+    <div>
+      <h1>Yerbario</h1>
+      <p>Mi diario de yerba mate</p>
+    </div>
+  </div>
+
+  <nav class="tabs" role="tablist" aria-label="Secciones">
+    <button class="tab is-active" role="tab" aria-selected="true" data-view="coleccion">Colección</button>
+    <button class="tab" role="tab" aria-selected="false" data-view="stats">Estadísticas</button>
+  </nav>
+
+  <div class="top-actions">
+    <button id="btn-theme" class="icon-btn" title="Cambiar entre tema claro y oscuro" aria-label="Cambiar tema">◐</button>
+    <div class="menu">
+      <button id="btn-data" class="btn ghost" aria-haspopup="true" aria-expanded="false">Datos ▾</button>
+      <div id="menu-data" class="menu-pop" hidden>
+        <button data-act="export-json">⬇ Exportar respaldo (.json)</button>
+        <button data-act="export-csv">⬇ Exportar planilla (.csv)</button>
+        <button data-act="import">⬆ Importar respaldo</button>
+        <button data-act="migrate">⇧ Migrar datos de este navegador</button>
+        <hr>
+        <button data-act="seed">✨ Cargar datos de ejemplo</button>
+        <button data-act="wipe" class="danger-text">🗑 Borrar todo</button>
+        <button data-act="logout">Cerrar sesión</button>
+        <p class="menu-note">Tus yerbas se guardan de forma segura en la nube. Hacé un respaldo de vez en cuando.</p>
+      </div>
+    </div>
+    <button id="btn-new" class="btn primary">+ Nueva yerba</button>
+  </div>
+</header>
+
+<main>
+  <!-- ====== COLECCIÓN ====== -->
+  <section id="view-coleccion" aria-label="Colección de yerbas">
+    <div id="summary" class="summary"></div>
+
+    <div class="toolbar">
+      <label class="search">
+        <span class="sr-only">Buscar</span>
+        <input id="f-q" type="search" placeholder="Buscar por nombre, marca, notas, etiquetas…  ( / )" autocomplete="off">
+      </label>
+      <select id="f-estado" aria-label="Estado">
+        <option value="todas">Todas</option>
+        <option value="probada">Probadas</option>
+        <option value="quiero">Quiero probar</option>
+      </select>
+      <select id="f-tipo" aria-label="Tipo"></select>
+      <select id="f-origen" aria-label="Origen"></select>
+      <select id="f-tag" aria-label="Etiqueta"></select>
+      <select id="f-min" aria-label="Puntaje mínimo">
+        <option value="0">Cualquier puntaje</option>
+        <option value="2">★ 2 o más</option>
+        <option value="3">★ 3 o más</option>
+        <option value="3.5">★ 3,5 o más</option>
+        <option value="4">★ 4 o más</option>
+        <option value="4.5">★ 4,5 o más</option>
+      </select>
+      <select id="f-orden" aria-label="Ordenar por">
+        <option value="recientes">Más recientes</option>
+        <option value="mejor">Mejor puntuadas</option>
+        <option value="peor">Peor puntuadas</option>
+        <option value="nombre">Nombre (A–Z)</option>
+        <option value="marca">Marca (A–Z)</option>
+        <option value="baratas">Más baratas por kg</option>
+        <option value="caras">Más caras por kg</option>
+      </select>
+      <button id="f-fav" class="toggle" aria-pressed="false" title="Mostrar solo favoritas">♥ Favoritas</button>
+      <div class="view-switch" role="group" aria-label="Vista">
+        <button id="v-grid" class="is-active" aria-pressed="true" title="Vista de tarjetas">▦</button>
+        <button id="v-list" aria-pressed="false" title="Vista de lista">☰</button>
+      </div>
+    </div>
+
+    <div id="grid" class="grid"></div>
+
+    <div id="empty" class="empty" hidden>
+      <div class="empty-art" aria-hidden="true">🧉</div>
+      <h2 id="empty-title">Tu yerbatera está vacía</h2>
+      <p id="empty-text">Cargá la primera yerba que pruebes y empezá a armar tu ranking.</p>
+      <div class="empty-actions">
+        <button class="btn primary" data-act="new">+ Cargar mi primera yerba</button>
+        <button class="btn ghost" data-act="seed">Ver con datos de ejemplo</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ====== ESTADÍSTICAS ====== -->
+  <section id="view-stats" aria-label="Estadísticas" hidden></section>
+</main>
+
+<!-- Barra flotante de comparación -->
+<div id="compare-bar" class="compare-bar" hidden>
+  <span id="compare-text"></span>
+  <button id="compare-go" class="btn primary sm">Comparar</button>
+  <button id="compare-clear" class="btn ghost sm">Limpiar</button>
+</div>
+
+<!-- ====== FORMULARIO ====== -->
+<dialog id="dlg-form" class="dlg dlg-wide" aria-labelledby="form-title">
+  <form id="form-yerba" autocomplete="off" novalidate>
+    <header class="dlg-head">
+      <h2 id="form-title">Nueva yerba</h2>
+      <button type="button" class="icon-btn" data-close aria-label="Cerrar">✕</button>
+    </header>
+
+    <div class="dlg-body">
+      <div class="seg" role="radiogroup" aria-label="Estado de la yerba">
+        <label><input type="radio" name="estado" value="probada" checked><span>🧉 Ya la probé</span></label>
+        <label><input type="radio" name="estado" value="quiero"><span>🛒 Quiero probarla</span></label>
+      </div>
+
+      <fieldset>
+        <legend>La yerba</legend>
+        <div class="fields">
+          <label class="f span2">Nombre *
+            <input name="nombre" required maxlength="80" placeholder="Ej: Tradicional 500 g">
+          </label>
+          <label class="f">Marca
+            <input name="marca" list="dl-marcas" maxlength="60" placeholder="Ej: Marca de la yerba">
+          </label>
+          <label class="f">Tipo
+            <select name="tipo"></select>
+          </label>
+          <label class="f">Origen
+            <select name="origen"></select>
+          </label>
+          <label class="f">Molienda
+            <select name="molienda"></select>
+          </label>
+          <label class="f">Estacionamiento (meses)
+            <input name="estacionamiento" type="number" min="0" max="60" step="1" inputmode="numeric" placeholder="Ej: 12">
+          </label>
+          <label class="f">Contenido (g)
+            <input name="gramos" type="number" min="0" step="1" inputmode="numeric" placeholder="500">
+          </label>
+          <label class="f">Precio ($)
+            <input name="precio" type="number" min="0" step="1" inputmode="numeric" placeholder="0">
+            <small id="pkg" class="hint"></small>
+          </label>
+          <label class="f">Comprada en
+            <input name="lugar" list="dl-lugares" maxlength="60" placeholder="Súper, almacén, online…">
+          </label>
+          <label class="f">Fecha en que la probé
+            <input name="fecha" type="date">
+          </label>
+          <label class="f">Cómo la tomé
+            <select name="modo"></select>
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Fotos</legend>
+        <button type="button" id="dropzone" class="dropzone">
+          <b>Tocá para subir fotos</b> o arrastralas acá
+          <span class="muted">También podés pegarlas con Ctrl+V · hasta 6 por yerba</span>
+        </button>
+        <input type="file" id="file-fotos" accept="image/*" multiple hidden>
+        <div id="thumbs" class="thumbs"></div>
+      </fieldset>
+
+      <fieldset class="only-probada">
+        <legend>Tu valoración</legend>
+        <p class="muted small">Tocá una estrella (mitad izquierda = media estrella). Volvé a tocar la misma nota para borrarla.</p>
+        <div id="crit-list" class="crit-list"></div>
+
+        <div class="general-row">
+          <div class="crit-name"><b>Puntaje general</b><small>Tu nota final, a tu criterio</small></div>
+          <div data-crit="general"></div>
+          <button type="button" class="btn ghost sm" id="btn-promedio" title="Calcula el promedio de los criterios">Usar promedio</button>
+        </div>
+
+        <div class="fields">
+          <label class="f">¿La volverías a comprar?
+            <select name="recompra">
+              <option value="">— sin definir —</option>
+              <option value="si">Sí, la volvería a comprar</option>
+              <option value="tal">Tal vez</option>
+              <option value="no">No la compraría</option>
+            </select>
+          </label>
+          <label class="check"><input type="checkbox" name="favorita"> <span>♥ Marcar como favorita</span></label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Tu opinión</legend>
+        <div class="fields">
+          <label class="f">👍 Lo bueno
+            <textarea name="pros" rows="3" maxlength="600" placeholder="Qué te gustó…"></textarea>
+          </label>
+          <label class="f">👎 Lo malo
+            <textarea name="contras" rows="3" maxlength="600" placeholder="Qué no te convenció…"></textarea>
+          </label>
+          <label class="f span2">Notas libres
+            <textarea name="notas" rows="4" maxlength="2000" placeholder="Con qué la tomaste, en qué momento, comparaciones, recomendaciones…"></textarea>
+          </label>
+          <label class="f span2">Etiquetas <small class="hint">separadas por coma</small>
+            <input name="tags" maxlength="120" placeholder="Ej: mañana, suave, para el trabajo">
+          </label>
+        </div>
+      </fieldset>
+    </div>
+
+    <footer class="dlg-foot">
+      <button type="button" class="btn ghost" data-close>Cancelar</button>
+      <button type="submit" class="btn primary">Guardar yerba</button>
+    </footer>
+  </form>
+  <datalist id="dl-marcas"></datalist>
+  <datalist id="dl-lugares"></datalist>
+</dialog>
+
+<!-- ====== DETALLE ====== -->
+<dialog id="dlg-detail" class="dlg dlg-wide" aria-label="Detalle de la yerba">
+  <div id="detail-body"></div>
+</dialog>
+
+<!-- ====== COMPARAR ====== -->
+<dialog id="dlg-compare" class="dlg dlg-wide" aria-label="Comparación de yerbas">
+  <div id="compare-body"></div>
+</dialog>
+
+<!-- ====== CONFIRMAR ====== -->
+<dialog id="dlg-confirm" class="dlg dlg-small" aria-labelledby="confirm-title">
+  <form method="dialog">
+    <div class="dlg-body">
+      <h2 id="confirm-title">¿Seguro?</h2>
+      <p id="confirm-msg"></p>
+    </div>
+    <footer class="dlg-foot">
+      <button value="no" class="btn ghost">Cancelar</button>
+      <button value="yes" id="confirm-ok" class="btn danger">Confirmar</button>
+    </footer>
+  </form>
+</dialog>
+
+<dialog id="dlg-login" class="dlg dlg-small" aria-labelledby="login-title">
+  <form id="form-login" autocomplete="off">
+    <div class="dlg-body">
+      <h2 id="login-title">Ingresar a Yerbario</h2>
+      <p>Ingresá la contraseña para acceder a tu diario.</p>
+      <label class="f" for="login-password">Contraseña
+        <input id="login-password" name="password" type="password" required autocomplete="current-password">
+      </label>
+      <p id="login-error" class="login-error" role="alert" hidden></p>
+    </div>
+    <footer class="dlg-foot">
+      <button type="submit" id="login-submit" class="btn primary">Ingresar</button>
+    </footer>
+  </form>
+</dialog>
+
+<div id="toasts" class="toasts" aria-live="polite"></div>
+<input type="file" id="file-import" accept="application/json,.json" hidden>
+
+<script src="app.js"></script>
+</body>
+</html>

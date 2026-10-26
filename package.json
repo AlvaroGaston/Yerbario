@@ -1,0 +1,20 @@
+{
+  "name": "yerbario",
+  "version": "1.0.0",
+  "description": "Diario personal de yerba mate",
+  "private": true,
+  "scripts": {
+    "dev": "vercel dev"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^1.2.0",
+    "@vercel/blob": "^2.8.2"
+  },
+  "overrides": {
+    "zod": "^4.6.7"
+  }
+}
