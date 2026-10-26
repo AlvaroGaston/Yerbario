@@ -63,15 +63,37 @@ async function api(path, options = {}) {
   } catch {
     throw new Error('No se pudo conectar con el servidor. Revisá tu conexión e intentá de nuevo.');
   }
+  if (response.status === 401 && path !== '/api/login') {
+    state.yerbas = [];
+    state.compare.clear();
+    state.detailId = null;
+    state.editingId = null;
+    state.formFotos = [];
+    state.dirty = false;
+    ['#dlg-detail', '#dlg-compare', '#dlg-form'].forEach(selector => {
+      const dialog = $(selector);
+      if (dialog.open) dialog.close();
+    });
+    renderAll();
+    mostrarLogin();
+  }
   let data;
-  const responseText = await response.text();
+  let responseText;
+  try { responseText = await response.text(); }
+  catch {
+    const error = new Error(`No pude leer la respuesta del servidor (HTTP ${response.status}).`);
+    error.status = response.status;
+    throw error;
+  }
   try { data = JSON.parse(responseText); }
   catch {
-    throw new Error(`El servidor respondió con HTTP ${response.status}, pero no devolvió JSON. Revisá el despliegue de la API e intentá de nuevo.`);
+    const error = new Error(`El servidor respondió con HTTP ${response.status}, pero no devolvió JSON. Revisá el despliegue de la API e intentá de nuevo.`);
+    error.status = response.status;
+    throw error;
   }
-  if (response.status === 401 && path !== '/api/login') mostrarLogin();
   if (!response.ok) {
-    const error = new Error(data.error || 'No se pudo completar la operación.');
+    const message = data && typeof data.error === 'string' ? data.error : 'No se pudo completar la operación.';
+    const error = new Error(`${message} (HTTP ${response.status})`);
     error.status = response.status;
     throw error;
   }
@@ -80,7 +102,11 @@ async function api(path, options = {}) {
 
 function mostrarLogin() {
   const dialog = $('#dlg-login');
-  if (!dialog.open) dialog.showModal();
+  if (!dialog.open) {
+    $('#form-login').hidden = false;
+    $('#form-register').hidden = true;
+    dialog.showModal();
+  }
 }
 
 async function subirFoto(blob, contentType = blob.type || 'image/jpeg') {
@@ -672,7 +698,7 @@ async function guardar(e) {
     const safeToDelete = !saveAttempted || (error.status && error.status < 500);
     if (safeToDelete) for (const url of uploaded) {
       try { await api('/api/fotos', { method: 'DELETE', body: { url } }); }
-      catch (cleanupError) { console.error('No se pudo limpiar una foto recién subida:', cleanupError); }
+      catch { console.error('No se pudo limpiar una foto recién subida.'); }
     }
     else if (!persisted && uploaded.length) console.error('No se borran las fotos porque el resultado del guardado pudo ser ambiguo.');
     toast(persisted
@@ -900,7 +926,7 @@ async function importarEnLotes(items) {
       const safeToDelete = !importAttempted || (error.status && error.status < 500);
       for (const url of safeToDelete ? uploaded : []) {
         try { await api('/api/fotos', { method: 'DELETE', body: { url } }); }
-        catch (cleanupError) { console.error('No se pudo limpiar una foto importada:', cleanupError); }
+        catch { console.error('No se pudo limpiar una foto importada.'); }
       }
       if (!safeToDelete && uploaded.length) console.error('Se preservan fotos por si el resultado de la importación fue ambiguo.');
       throw new Error(imported ? `Se importaron ${imported} registros antes del error. ${error.message}` : error.message);
@@ -1052,7 +1078,7 @@ function bindEventos() {
     const b = e.target.closest('[data-act]');
     if (!b) return;
     cerrarMenu();
-    ({
+    const action = ({
       'export-json': exportarJSON,
       'export-csv': exportarCSV,
       import: () => $('#file-import').click(),
@@ -1060,7 +1086,8 @@ function bindEventos() {
       logout: cerrarSesion,
       seed: cargarEjemplos,
       wipe: borrarTodo,
-    })[b.dataset.act]?.();
+    })[b.dataset.act];
+    if (action) Promise.resolve().then(action).catch(error => toast(`No pude completar la acción: ${error.message}`));
   });
   $('#file-import').addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; if (f) importarArchivo(f); });
 
@@ -1196,18 +1223,54 @@ function bindEventos() {
     }
   });
 
+  const cambiarModoAcceso = register => {
+    $('#form-login').hidden = register;
+    $('#form-register').hidden = !register;
+    $('#dlg-login').setAttribute('aria-labelledby', register ? 'register-title' : 'login-title');
+    $('#login-error').hidden = true;
+    $('#register-error').hidden = true;
+    $(`${register ? '#register-usuario' : '#login-usuario'}`).focus();
+  };
+  $('#show-register').addEventListener('click', () => cambiarModoAcceso(true));
+  $('#show-login').addEventListener('click', () => cambiarModoAcceso(false));
+
   $('#form-login').addEventListener('submit', async e => {
     e.preventDefault();
     const button = $('#login-submit');
+    const usuario = $('#login-usuario').value;
     const password = $('#login-password').value;
     const error = $('#login-error');
     button.disabled = true;
     error.hidden = true;
     try {
-      await api('/api/login', { method: 'POST', body: { password } });
+      await api('/api/login', { method: 'POST', body: { usuario, password } });
       $('#form-login').reset();
       $('#dlg-login').close();
       await recargar();
+    } catch (reason) {
+      error.textContent = reason.message;
+      error.hidden = false;
+    } finally {
+      button.disabled = false;
+    }
+  });
+  $('#form-register').addEventListener('submit', async e => {
+    e.preventDefault();
+    const button = $('#register-submit');
+    const error = $('#register-error');
+    const body = {
+      usuario: $('#register-usuario').value,
+      password: $('#register-password').value,
+      codigo: $('#register-codigo').value,
+    };
+    button.disabled = true;
+    error.hidden = true;
+    try {
+      await api('/api/register', { method: 'POST', body });
+      $('#form-register').reset();
+      $('#dlg-login').close();
+      await recargar();
+      toast('Cuenta creada ✔');
     } catch (reason) {
       error.textContent = reason.message;
       error.hidden = false;

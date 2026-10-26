@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Yerbario · Mi diario de yerba mate</title>
   <meta name="description" content="Anotá, clasificá y opiná sobre las yerbas mate que vas probando.">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -264,7 +265,10 @@
   <form id="form-login" autocomplete="off">
     <div class="dlg-body">
       <h2 id="login-title">Ingresar a Yerbario</h2>
-      <p>Ingresá la contraseña para acceder a tu diario.</p>
+      <p>Ingresá a tu cuenta para acceder a tu diario.</p>
+      <label class="f" for="login-usuario">Usuario
+        <input id="login-usuario" name="usuario" type="text" required minlength="3" maxlength="32" autocomplete="username">
+      </label>
       <label class="f" for="login-password">Contraseña
         <input id="login-password" name="password" type="password" required autocomplete="current-password">
       </label>
@@ -272,6 +276,27 @@
     </div>
     <footer class="dlg-foot">
       <button type="submit" id="login-submit" class="btn primary">Ingresar</button>
+      <button type="button" id="show-register" class="btn ghost">Crear una cuenta nueva</button>
+    </footer>
+  </form>
+  <form id="form-register" autocomplete="off" hidden>
+    <div class="dlg-body">
+      <h2 id="register-title">Crear una cuenta</h2>
+      <p>Elegí un usuario y una contraseña para tu diario.</p>
+      <label class="f" for="register-usuario">Usuario
+        <input id="register-usuario" name="usuario" type="text" required minlength="3" maxlength="32" autocomplete="username">
+      </label>
+      <label class="f" for="register-password">Contraseña (mínimo 8 caracteres)
+        <input id="register-password" name="password" type="password" required minlength="8" maxlength="256" autocomplete="new-password">
+      </label>
+      <label class="f" for="register-codigo">Código de invitación
+        <input id="register-codigo" name="codigo" type="password" maxlength="256" autocomplete="off">
+      </label>
+      <p id="register-error" class="login-error" role="alert" hidden></p>
+    </div>
+    <footer class="dlg-foot">
+      <button type="submit" id="register-submit" class="btn primary">Crear cuenta</button>
+      <button type="button" id="show-login" class="btn ghost">Ya tengo una cuenta</button>
     </footer>
   </form>
 </dialog>

@@ -1,5 +1,5 @@
 import { db, ensureSchema } from '../lib/db.js';
-import { deletePhoto, uploadPhoto } from '../lib/blob.js';
+import { deletePhoto, ensureOwnedPhotos, uploadPhoto } from '../lib/blob.js';
 import { requireAuth } from '../lib/auth.js';
 import { fail, HttpError, json, methodNotAllowed, readJson } from '../lib/http.js';
 import { validateYerba } from '../lib/yerbas.js';
@@ -24,7 +24,8 @@ function importedTimestamp(value, label) {
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
-  if (!requireAuth(req, res)) return;
+  const session = requireAuth(req, res);
+  if (!session) return;
   const uploaded = [];
   let transactionAttempted = false;
   try {
@@ -45,7 +46,7 @@ export default async function handler(req, res) {
         for (const value of item.fotos) {
           if (typeof value === 'string' && value.startsWith('data:image/')) {
             const image = imageFromDataUrl(value);
-            const url = await uploadPhoto(image.bytes, image.contentType);
+            const url = await uploadPhoto(image.bytes, image.contentType, session.id);
             uploaded.push(url);
             photos.push(url);
           } else {
@@ -53,8 +54,10 @@ export default async function handler(req, res) {
           }
         }
       }
+      const record = validateYerba({ ...item, fotos: photos });
+      ensureOwnedPhotos(record.fotos, session.id);
       records.push({
-        ...validateYerba({ ...item, fotos: photos }),
+        ...record,
         creado: importedTimestamp(item.creado, 'creación'),
         actualizado: importedTimestamp(item.actualizado, 'actualización'),
       });
@@ -79,16 +82,17 @@ export default async function handler(req, res) {
         INSERT INTO yerbas (
           estado, nombre, marca, tipo, origen, molienda, modo, estacionamiento, gramos,
           precio, lugar, fecha, puntajes, general, recompra, favorita, pros, contras,
-          notas, tags, fotos, creado, actualizado
+          notas, tags, fotos, creado, actualizado, user_id
         )
         SELECT i.estado, i.nombre, i.marca, i.tipo, i.origen, i.molienda, i.modo,
           i.estacionamiento, i.gramos, i.precio, i.lugar, i.fecha, i.puntajes,
           i.general, i.recompra, i.favorita, i.pros, i.contras, i.notas, i.tags, i.fotos,
-          COALESCE(i.creado, now()), COALESCE(i.actualizado, i.creado, now())
+          COALESCE(i.creado, now()), COALESCE(i.actualizado, i.creado, now()), ${session.id}
         FROM deduplicated i
         WHERE NOT EXISTS (
           SELECT 1 FROM yerbas y
-          WHERE lower(y.nombre) = lower(i.nombre)
+          WHERE y.user_id = ${session.id}
+            AND lower(y.nombre) = lower(i.nombre)
             AND lower(y.marca) = lower(i.marca)
             AND y.fecha IS NOT DISTINCT FROM i.fecha
         )
@@ -101,17 +105,17 @@ export default async function handler(req, res) {
     let cleanupPending = false;
     const used = new Set(inserted.flatMap(row => row.fotos || []));
     for (const url of uploaded) if (!used.has(url)) {
-      try { await deletePhoto(url); }
-      catch (cleanupError) {
+      try { await deletePhoto(url, session.id); }
+      catch {
         cleanupPending = true;
-        console.error('No se pudo limpiar una foto duplicada del respaldo:', cleanupError);
+        console.error('No se pudo limpiar una foto duplicada del respaldo.');
       }
     }
     return json(res, 200, { imported: inserted.length, cleanupPending });
   } catch (error) {
     for (const url of transactionAttempted ? [] : uploaded) {
-      try { await deletePhoto(url); }
-      catch (cleanupError) { console.error('No se pudo limpiar una foto del respaldo:', cleanupError); }
+      try { await deletePhoto(url, session.id); }
+      catch { console.error('No se pudo limpiar una foto del respaldo.'); }
     }
     if (transactionAttempted) console.error('La importación falló durante la transacción; se preservan fotos por si hubo confirmación ambigua.');
     return fail(res, error);

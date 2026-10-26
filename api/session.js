@@ -1,9 +1,18 @@
-import { fail, json, methodNotAllowed } from '../lib/http.js';
+import { db, ensureSchema } from '../lib/db.js';
 import { requireAuth } from '../lib/auth.js';
+import { fail, json, methodNotAllowed } from '../lib/http.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
-  if (!requireAuth(req, res)) return;
-  try { return json(res, 200, { authenticated: true }); }
-  catch (error) { return fail(res, error); }
+  const session = requireAuth(req, res);
+  if (!session) return;
+  try {
+    await ensureSchema();
+    const sql = db();
+    const [user] = await sql`SELECT usuario FROM usuarios WHERE id = ${session.id}`;
+    if (!user) return json(res, 401, { error: 'La sesión ya no es válida. Iniciá sesión de nuevo.' });
+    return json(res, 200, { authenticated: true, usuario: user.usuario });
+  } catch (error) {
+    return fail(res, error);
+  }
 }
