@@ -23,7 +23,8 @@ export default async function handler(req, res) {
     successfulAttempt(req, 'login');
     res.setHeader('Set-Cookie', createSessionCookie(user.id));
     return json(res, 200, { authenticated: true, usuario });
-  } catch (error) {
-    return fail(res, error);
+  } catch (err) {
+    console.error('[api/login] error', err.message);
+    return fail(res, err);
   }
 }

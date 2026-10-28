@@ -106,18 +106,19 @@ export default async function handler(req, res) {
     const used = new Set(inserted.flatMap(row => row.fotos || []));
     for (const url of uploaded) if (!used.has(url)) {
       try { await deletePhoto(url, session.id); }
-      catch {
+      catch (err) {
         cleanupPending = true;
-        console.error('No se pudo limpiar una foto duplicada del respaldo.');
+        console.error('[api/import] error', err.message);
       }
     }
     return json(res, 200, { imported: inserted.length, cleanupPending });
-  } catch (error) {
+  } catch (err) {
     for (const url of transactionAttempted ? [] : uploaded) {
       try { await deletePhoto(url, session.id); }
-      catch { console.error('No se pudo limpiar una foto del respaldo.'); }
+      catch (err) { console.error('[api/import] error', err.message); }
     }
     if (transactionAttempted) console.error('La importación falló durante la transacción; se preservan fotos por si hubo confirmación ambigua.');
-    return fail(res, error);
+    console.error('[api/import] error', err.message);
+    return fail(res, err);
   }
 }

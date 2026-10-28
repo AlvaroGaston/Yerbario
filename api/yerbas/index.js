@@ -79,7 +79,8 @@ export default async function handler(req, res) {
       ${record.notas}, ${record.tags}, ${JSON.stringify(record.fotos)}::jsonb, ${session.id}
     ) RETURNING *`;
     return json(res, 201, serializeYerba(row));
-  } catch (error) {
-    return fail(res, error);
+  } catch (err) {
+    console.error('[api/yerbas] error', err.message);
+    return fail(res, err);
   }
 }

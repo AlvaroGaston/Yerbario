@@ -47,6 +47,9 @@ CREATE TABLE IF NOT EXISTS yerbas (
 
 ALTER TABLE yerbas ADD COLUMN IF NOT EXISTS user_id BIGINT;
 
+UPDATE yerbas SET user_id = (SELECT id FROM usuarios ORDER BY id LIMIT 1)
+WHERE user_id IS NULL AND EXISTS (SELECT 1 FROM usuarios);
+
 DO $$
 BEGIN
   IF NOT EXISTS (
@@ -61,8 +64,6 @@ END;
 $$;
 
 CREATE INDEX IF NOT EXISTS yerbas_user_id_idx ON yerbas (user_id);
-UPDATE yerbas SET user_id = (SELECT id FROM usuarios ORDER BY id LIMIT 1)
-WHERE user_id IS NULL AND EXISTS (SELECT 1 FROM usuarios);
 
 DO $$
 BEGIN

@@ -22,7 +22,8 @@ export default async function handler(req, res) {
     const deleted = await deletePhotoIfUnused(db(), body.url, session.id);
     if (!deleted) throw new HttpError(409, 'La foto todavía está asociada a una yerba.');
     return json(res, 200, { deleted: true });
-  } catch (error) {
-    return fail(res, error);
+  } catch (err) {
+    console.error('[api/fotos] error', err.message);
+    return fail(res, err);
   }
 }

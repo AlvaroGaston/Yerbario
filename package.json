@@ -3,8 +3,7 @@
   "version": "1.0.0",
   "description": "Diario personal de yerba mate",
   "private": true,
-  "scripts": {
-    
+  "scripts": { 
   },
   "type": "module",
   "engines": {

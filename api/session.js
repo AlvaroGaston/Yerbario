@@ -12,7 +12,8 @@ export default async function handler(req, res) {
     const [user] = await sql`SELECT usuario FROM usuarios WHERE id = ${session.id}`;
     if (!user) return json(res, 401, { error: 'La sesión ya no es válida. Iniciá sesión de nuevo.' });
     return json(res, 200, { authenticated: true, usuario: user.usuario });
-  } catch (error) {
-    return fail(res, error);
+  } catch (err) {
+    console.error('[api/session] error', err.message);
+    return fail(res, err);
   }
 }
