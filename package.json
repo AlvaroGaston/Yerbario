@@ -4,7 +4,7 @@
   "description": "Diario personal de yerba mate",
   "private": true,
   "scripts": {
-    "dev": "vercel dev"
+    
   },
   "type": "module",
   "engines": {
