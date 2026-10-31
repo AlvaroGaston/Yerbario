@@ -23,7 +23,6 @@ export default async function handler(req, res) {
     if (!deleted) throw new HttpError(409, 'La foto todavía está asociada a una yerba.');
     return json(res, 200, { deleted: true });
   } catch (err) {
-    console.error('[api/fotos] error', err.message);
-    return fail(res, err);
+    return fail(res, err, 'api/fotos');
   }
 }

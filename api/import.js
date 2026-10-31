@@ -118,7 +118,6 @@ export default async function handler(req, res) {
       catch (err) { console.error('[api/import] error', err.message); }
     }
     if (transactionAttempted) console.error('La importación falló durante la transacción; se preservan fotos por si hubo confirmación ambigua.');
-    console.error('[api/import] error', err.message);
-    return fail(res, err);
+    return fail(res, err, 'api/import');
   }
 }

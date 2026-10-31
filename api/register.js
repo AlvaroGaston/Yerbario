@@ -36,7 +36,6 @@ export default async function handler(req, res) {
     res.setHeader('Set-Cookie', createSessionCookie(result.id));
     return json(res, 201, { authenticated: true, usuario: result.usuario });
   } catch (err) {
-    console.error('[api/register] error', err.message);
-    return fail(res, err);
+    return fail(res, err, 'api/register');
   }
 }

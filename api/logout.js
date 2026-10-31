@@ -8,7 +8,6 @@ export default async function handler(req, res) {
     res.setHeader('Set-Cookie', clearSessionCookie());
     return json(res, 200, { authenticated: false });
   } catch (err) {
-    console.error('[api/logout] error', err.message);
-    return fail(res, err);
+    return fail(res, err, 'api/logout');
   }
 }

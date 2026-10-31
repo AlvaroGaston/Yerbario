@@ -47,13 +47,12 @@ node -e "process.stdout.write(require('node:crypto').randomBytes(48).toString('b
 ## Desarrollo local
 
 1. Instalá las dependencias: `npm install`.
-2. Instalá la CLI de Vercel si todavía no está disponible: `npm install -g vercel`.
-3. Iniciá sesión y vinculá el directorio al proyecto: `vercel link`.
-4. Descargá las variables de desarrollo: `vercel env pull .env.local`.
-5. Verificá que `.env.local` incluya `DATABASE_URL`, `BLOB_READ_WRITE_TOKEN` y `SESSION_SECRET`. Para cerrar el registro, configurá también `INVITE_CODE`.
-6. Ejecutá `npm run dev` (equivale a `vercel dev`) y abrí la URL que informa la CLI.
+2. Creá `.env.local` (podés partir de `.env.example`) con `DATABASE_URL`, `BLOB_READ_WRITE_TOKEN`, `SESSION_SECRET` e `INVITE_CODE`. Las variables de Neon marcadas como Sensitive no se descargan con `vercel env pull`: copiálas desde el panel de Neon.
+3. Ejecutá `npm run dev` y abrí http://localhost:3000 (otro puerto: `$env:PORT=3001; npm run dev`).
 
-No abras `public/index.html` directamente como archivo: la app requiere sus rutas API. La cookie de sesión usa `Secure`; probá a través de `vercel dev` en localhost.
+`npm run dev` usa `scripts/dev-server.mjs`, un servidor Node mínimo que carga `.env.local` con `--env-file`, sirve `public/` y ejecuta los handlers de `api/` sin la CLI de Vercel. No uses `vercel dev`: solo lee `.env` y, si no existe, usa las variables del entorno Development de Vercel, ignorando `.env.local`.
+
+No abras `public/index.html` directamente como archivo: la app requiere sus rutas API. La cookie de sesión usa `Secure`, que los navegadores aceptan en `http://localhost`.
 
 ## Cuentas y aislamiento
 

@@ -80,7 +80,6 @@ export default async function handler(req, res) {
     ) RETURNING *`;
     return json(res, 201, serializeYerba(row));
   } catch (err) {
-    console.error('[api/yerbas] error', err.message);
-    return fail(res, err);
+    return fail(res, err, 'api/yerbas');
   }
 }

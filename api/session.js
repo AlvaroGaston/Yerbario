@@ -13,7 +13,6 @@ export default async function handler(req, res) {
     if (!user) return json(res, 401, { error: 'La sesión ya no es válida. Iniciá sesión de nuevo.' });
     return json(res, 200, { authenticated: true, usuario: user.usuario });
   } catch (err) {
-    console.error('[api/session] error', err.message);
-    return fail(res, err);
+    return fail(res, err, 'api/session');
   }
 }
