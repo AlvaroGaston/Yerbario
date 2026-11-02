@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS yerbas (
     AND (puntajes->>'precio')::numeric BETWEEN 0 AND 5 AND mod((puntajes->>'precio')::numeric * 2, 1) = 0
   ),
   general NUMERIC(2,1) NOT NULL DEFAULT 0 CHECK (general BETWEEN 0 AND 5 AND mod(general * 2, 1) = 0),
+  primer_mate NUMERIC(2,1) NOT NULL DEFAULT 0 CHECK (primer_mate BETWEEN 0 AND 5 AND mod(primer_mate * 2, 1) = 0),
   recompra TEXT NOT NULL DEFAULT '' CHECK (recompra IN ('', 'si', 'tal', 'no')),
   favorita BOOLEAN NOT NULL DEFAULT false,
   pros TEXT NOT NULL DEFAULT '',

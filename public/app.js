@@ -6,21 +6,7 @@
    ========================================================= */
 
 /* ---------- Catálogos ---------- */
-const CRITERIOS = [
-  { key: 'sabor',       label: 'Sabor',            hint: 'Qué tan rica es en boca' },
-  { key: 'aroma',       label: 'Aroma',            hint: 'Olor en el paquete y en el mate' },
-  { key: 'amargor',     label: 'Amargor',          hint: '5 = justo como me gusta' },
-  { key: 'espuma',      label: 'Espuma',           hint: 'Cómo se forma y cuánto dura' },
-  { key: 'rendimiento', label: 'Rendimiento',      hint: 'Cuántos mates aguanta antes de lavarse' },
-  { key: 'polvo',       label: 'Polvo',            hint: '5 = casi no tiene polvo, no tapa la bombilla' },
-  { key: 'precio',      label: 'Precio / calidad', hint: '5 = vale cada peso' },
-];
 const TIPOS = ['Con palo (tradicional)', 'Despalada / sin palo', 'Compuesta con hierbas', 'Orgánica', 'Barbacuá / ahumada', 'Saborizada', 'Suave / baja astringencia', 'Otra'];
-const ORIGENES = ['Misiones', 'Corrientes', 'Brasil', 'Paraguay', 'Uruguay', 'Otro'];
-const MOLIENDAS = ['Fina', 'Media', 'Gruesa'];
-const MODOS = ['Amargo', 'Dulce', 'Tereré', 'Cocido'];
-const RECOMPRA = { si: 'La volvería a comprar', tal: 'Tal vez', no: 'No la compraría' };
-const COLORES = ['#2f7d4f', '#d9822b', '#4a6fa5'];
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 const MAX_FOTOS = 6;
 
@@ -42,12 +28,18 @@ const ls = {
 };
 const debounce = (fn, ms = 160) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
 
-function toast(msg) {
+// Los avisos se dibujan dentro del diálogo abierto (si hay uno): fuera de él quedan tapados por el fondo oscuro.
+function toast(msg, { error = false } = {}) {
+  const box = $('#toasts');
+  const host = $$('dialog[open]').pop() || document.body;
+  if (box.parentElement !== host) host.appendChild(box);
   const el = document.createElement('div');
-  el.className = 'toast';
+  el.className = error ? 'toast toast-error' : 'toast';
   el.textContent = msg;
-  $('#toasts').appendChild(el);
-  setTimeout(() => el.remove(), 3200);
+  el.title = 'Tocá para cerrar';
+  el.addEventListener('click', () => el.remove());
+  box.appendChild(el);
+  setTimeout(() => el.remove(), error ? 10000 : 3200);
 }
 
 /* ---------- API ---------- */
@@ -120,7 +112,7 @@ const state = {
   yerbas: [],
   view: 'coleccion',
   vista: ls.get('yerbario-vista') === 'list' ? 'list' : 'grid',
-  filtros: { q: '', estado: 'todas', tipo: '', origen: '', tag: '', min: 0, fav: false, orden: 'recientes' },
+  filtros: { q: '', estado: 'todas', tipo: '', min: 0, fav: false, orden: 'recientes' },
   compare: new Set(),
   editingId: null,
   detailId: null,
@@ -180,30 +172,6 @@ function mountStarInput(el, value, onChange) {
   });
   paint(val);
   return { get: () => val, set: v => { val = v || 0; paint(val); } };
-}
-
-/* ---------- Radar ---------- */
-function radarSVG(series, { size = 360, labels = true } = {}) {
-  const n = CRITERIOS.length, cx = size / 2, cy = size / 2;
-  const R = size / 2 - (labels ? 62 : 14);
-  const pt = (i, v) => { const a = -Math.PI / 2 + i * 2 * Math.PI / n; const r = R * v / 5; return [cx + r * Math.cos(a), cy + r * Math.sin(a), Math.cos(a)]; };
-  let g = '';
-  for (let lv = 1; lv <= 5; lv++) g += `<polygon class="radar-ring" points="${CRITERIOS.map((_, i) => pt(i, lv).slice(0, 2).map(v => v.toFixed(1)).join(',')).join(' ')}"/>`;
-  CRITERIOS.forEach((c, i) => {
-    const [x, y] = pt(i, 5);
-    g += `<line class="radar-axis" x1="${cx}" y1="${cy}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}"/>`;
-    if (labels) {
-      const [lx, ly, co] = pt(i, 5.75);
-      const anchor = co > 0.3 ? 'start' : co < -0.3 ? 'end' : 'middle';
-      g += `<text x="${lx.toFixed(1)}" y="${(ly + 4).toFixed(1)}" text-anchor="${anchor}">${esc(c.label.replace(' / calidad', ''))}</text>`;
-    }
-  });
-  series.forEach(s => {
-    const pts = CRITERIOS.map((c, i) => pt(i, +s.values?.[c.key] || 0));
-    g += `<polygon points="${pts.map(p => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ')}" style="fill:${s.color};fill-opacity:.22;stroke:${s.color};stroke-width:2.2;stroke-linejoin:round"/>`;
-    pts.forEach(p => { g += `<circle class="radar-dot" cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="3.6" style="fill:${s.color}"/>`; });
-  });
-  return `<svg viewBox="0 0 ${size} ${size}" class="radar" role="img" aria-label="Gráfico radar de criterios">${g}</svg>`;
 }
 
 /* ---------- Imágenes ---------- */
@@ -270,8 +238,6 @@ function llenarFiltro(sel, key, valores, etiqueta) {
 function renderFiltrosOpciones() {
   const uniq = f => [...new Set(state.yerbas.flatMap(f).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es'));
   llenarFiltro($('#f-tipo'), 'tipo', uniq(y => [y.tipo]), 'Todos los tipos');
-  llenarFiltro($('#f-origen'), 'origen', uniq(y => [y.origen]), 'Todos los orígenes');
-  llenarFiltro($('#f-tag'), 'tag', uniq(y => y.tags || []), 'Todas las etiquetas');
 }
 
 function filtradas() {
@@ -279,12 +245,10 @@ function filtradas() {
   const lista = state.yerbas.filter(y => {
     if (f.estado !== 'todas' && y.estado !== f.estado) return false;
     if (f.tipo && y.tipo !== f.tipo) return false;
-    if (f.origen && y.origen !== f.origen) return false;
-    if (f.tag && !(y.tags || []).includes(f.tag)) return false;
     if (f.fav && !y.favorita) return false;
     if (f.min && !(y.general >= f.min)) return false;
     if (q) {
-      const hay = [y.nombre, y.marca, y.notas, y.lugar, y.pros, y.contras, y.tipo, y.origen, (y.tags || []).join(' ')].join(' ').toLowerCase();
+      const hay = [y.nombre, y.marca, y.notas, y.tipo].join(' ').toLowerCase();
       if (!hay.includes(q)) return false;
     }
     return true;
@@ -318,7 +282,7 @@ function cardHTML(y) {
       <div class="card-rate">${quiero ? '<span class="muted">Sin probar todavía</span>' : `${stars(y.general)}<b>${y.general ? fmtRate(y.general) : '—'}</b>`}</div>
       <div class="chips">
         ${y.tipo ? `<span class="chip">${esc(y.tipo)}</span>` : ''}
-        ${y.origen ? `<span class="chip">${esc(y.origen)}</span>` : ''}
+        ${!quiero && y.primer_mate ? `<span class="chip" title="Primer mate">1.er mate ${fmtRate(y.primer_mate)} ★</span>` : ''}
       </div>
       <div class="card-foot">
         <span class="muted">${kg ? money(kg) + ' / kg' : (y.precio ? money(y.precio) : '')}</span>
@@ -414,15 +378,11 @@ function abrirDetalle(id) {
 function detalleHTML(y, urls) {
   const kg = precioKg(y);
   const quiero = y.estado === 'quiero';
-  const p = y.puntajes || {};
-  const tienePuntajes = CRITERIOS.some(c => p[c.key] > 0);
   const hechos = [
-    ['Tipo', y.tipo], ['Origen', y.origen], ['Molienda', y.molienda], ['Cómo la tomé', y.modo],
-    ['Estacionamiento', y.estacionamiento != null ? `${y.estacionamiento} meses` : ''],
+    ['Tipo', y.tipo],
     ['Contenido', y.gramos ? `${y.gramos} g` : ''],
     ['Precio', y.precio != null ? money(y.precio) : ''],
     ['Precio por kg', kg ? money(kg) : ''],
-    ['Comprada en', y.lugar],
     ['Fecha', y.fecha ? fmtFecha(y.fecha) : ''],
   ].filter(h => h[1]);
 
@@ -448,24 +408,12 @@ function detalleHTML(y, urls) {
             ? '<div class="badges"><span class="badge wish">🛒 Quiero probarla</span></div>'
             : `<div class="detail-rate">${stars(y.general, 'lg')}<span class="big">${y.general ? fmtRate(y.general) : '—'}</span></div>`}
         </div>
-        <div class="badges">
-          ${y.favorita ? '<span class="badge">♥ Favorita</span>' : ''}
-          ${y.recompra ? `<span class="badge rec-${y.recompra}">${RECOMPRA[y.recompra]}</span>` : ''}
-          ${(y.tags || []).map(t => `<span class="chip tag">#${esc(t)}</span>`).join('')}
-        </div>
+        ${y.favorita ? '<div class="badges"><span class="badge">♥ Favorita</span></div>' : ''}
         ${hechos.length ? `<dl class="facts">${hechos.map(h => `<div><dt>${h[0]}</dt><dd>${esc(h[1])}</dd></div>`).join('')}</dl>` : ''}
-        ${(!quiero && tienePuntajes) ? `
+        ${!quiero ? `
           <div class="detail-block">
-            <h4>Criterios</h4>
-            <div class="score-wrap">
-              <ul class="crit-ro">${CRITERIOS.map(c => `<li><span>${c.label}</span><span>${stars(p[c.key], 'sm')} <span class="v">${p[c.key] ? fmtRate(p[c.key]) : '—'}</span></span></li>`).join('')}</ul>
-              ${radarSVG([{ values: p, color: COLORES[0] }], { size: 360 })}
-            </div>
+            <ul class="crit-ro"><li><span>Primer mate</span><span>${stars(y.primer_mate, 'sm')} <span class="v">${y.primer_mate ? fmtRate(y.primer_mate) : '—'}</span></span></li></ul>
           </div>` : ''}
-        ${(y.pros || y.contras) ? `<div class="proscons">
-          ${y.pros ? `<div><h4>👍 Lo bueno</h4><p>${esc(y.pros)}</p></div>` : ''}
-          ${y.contras ? `<div><h4>👎 Lo malo</h4><p>${esc(y.contras)}</p></div>` : ''}
-        </div>` : ''}
         ${y.notas ? `<div class="notes"><h4>Notas</h4><p>${esc(y.notas)}</p></div>` : ''}
         <div class="detail-actions">
           <button type="button" id="detail-fav" class="btn ghost" aria-pressed="${!!y.favorita}" data-act="d-fav">${y.favorita ? '♥ Favorita' : '♡ Marcar favorita'}</button>
@@ -496,14 +444,11 @@ function abrirComparar() {
 
   const filas = [
     fila('Puntaje general', y => y.general, (y, v) => v ? `${stars(v, 'sm')}<br><b>${fmtRate(v)}</b>` : '—', 'max'),
-    ...CRITERIOS.map(c => fila(c.label, y => y.puntajes?.[c.key], (y, v) => v ? `${stars(v, 'sm')} ${fmtRate(v)}` : '—', 'max')),
+    fila('Primer mate', y => y.primer_mate, (y, v) => v ? `${stars(v, 'sm')} ${fmtRate(v)}` : '—', 'max'),
     fila('Precio', y => y.precio, (y, v) => money(v), 'min'),
     fila('Precio por kg', y => precioKg(y), (y, v) => v ? money(v) : '—', 'min'),
     fila('Contenido', y => y.gramos, (y, v) => v ? `${v} g` : '—'),
     fila('Tipo', y => y.tipo, (y, v) => txt(v)),
-    fila('Origen', y => y.origen, (y, v) => txt(v)),
-    fila('Molienda', y => y.molienda, (y, v) => txt(v)),
-    fila('¿La volvería a comprar?', y => y.recompra, (y, v) => v ? RECOMPRA[v] : '—'),
   ].join('');
 
   $('#compare-body').innerHTML = `
@@ -516,11 +461,7 @@ function abrirComparar() {
           <div class="cmp-name">${esc(y.nombre)}</div></th>`).join('')}</tr></thead>
         <tbody>${filas}</tbody>
       </table>
-      <div class="cmp-chart">
-        ${radarSVG(items.map((y, i) => ({ values: y.puntajes || {}, color: COLORES[i] })), { size: 380 })}
-        <div class="legend">${items.map((y, i) => `<span><i style="background:${COLORES[i]}"></i>${esc(y.nombre)}</span>`).join('')}
-          <p class="muted small">Las celdas resaltadas marcan la mejor opción en cada fila.</p></div>
-      </div>
+      <p class="muted small">Las celdas resaltadas marcan la mejor opción en cada fila.</p>
     </div>`;
   $('#dlg-compare').showModal();
 }
@@ -533,12 +474,6 @@ function opciones(arr, vacio) {
 function montarForm() {
   const f = $('#form-yerba').elements;
   f.tipo.innerHTML = opciones(TIPOS, '— elegir —');
-  f.origen.innerHTML = opciones(ORIGENES, '— elegir —');
-  f.molienda.innerHTML = opciones(MOLIENDAS, '— elegir —');
-  f.modo.innerHTML = opciones(MODOS, '— elegir —');
-
-  $('#crit-list').innerHTML = CRITERIOS.map(c =>
-    `<div class="crit-row"><div class="crit-name"><b>${c.label}</b><small>${c.hint}</small></div><div data-crit="${c.key}"></div></div>`).join('');
   $$('#form-yerba [data-crit]').forEach(el => {
     formStars[el.dataset.crit] = mountStarInput(el, 0, () => { state.dirty = true; });
   });
@@ -562,26 +497,17 @@ function abrirForm(id = null) {
   f.nombre.value = y?.nombre ?? '';
   f.marca.value = y?.marca ?? '';
   f.tipo.value = y?.tipo ?? '';
-  f.origen.value = y?.origen ?? '';
-  f.molienda.value = y?.molienda ?? '';
-  f.modo.value = y?.modo ?? '';
-  f.estacionamiento.value = y?.estacionamiento ?? '';
   f.gramos.value = y?.gramos ?? '';
   f.precio.value = y?.precio ?? '';
-  f.lugar.value = y?.lugar ?? '';
   f.fecha.value = y ? (y.fecha ?? '') : hoy();
-  f.recompra.value = y?.recompra ?? '';
   f.favorita.checked = !!y?.favorita;
-  f.pros.value = y?.pros ?? '';
-  f.contras.value = y?.contras ?? '';
   f.notas.value = y?.notas ?? '';
-  f.tags.value = (y?.tags || []).join(', ');
 
-  CRITERIOS.forEach(c => formStars[c.key].set(y?.puntajes?.[c.key] ?? 0));
+  formStars.primer_mate.set(y?.primer_mate ?? 0);
   formStars.general.set(y?.general ?? 0);
+  mostrarErrorForm('');
 
   $('#dl-marcas').innerHTML = [...new Set(state.yerbas.map(x => x.marca).filter(Boolean))].map(m => `<option value="${esc(m)}">`).join('');
-  $('#dl-lugares').innerHTML = [...new Set(state.yerbas.map(x => x.lugar).filter(Boolean))].map(m => `<option value="${esc(m)}">`).join('');
 
   state.formFotos = (y?.fotos || []).map(url => ({ url, existing: true }));
   renderThumbs();
@@ -637,50 +563,61 @@ async function cerrarForm() {
   $('#dlg-form').close();
 }
 
+// Muestra el error dentro del formulario, al lado de los botones, para que no se pierda.
+function mostrarErrorForm(msg) {
+  const el = $('#form-error');
+  el.textContent = msg;
+  el.hidden = !msg;
+}
+
 async function guardar(e) {
   e.preventDefault();
   const submit = $('#form-yerba button[type="submit"]');
   if (submit.disabled) return;
   const f = $('#form-yerba').elements;
   const nombre = f.nombre.value.trim();
-  if (!nombre) { f.nombre.focus(); toast('Poné el nombre de la yerba'); return; }
+  if (!nombre) { f.nombre.focus(); mostrarErrorForm('Poné el nombre de la yerba.'); return; }
+  mostrarErrorForm('');
 
   const estado = f.estado.value;
   const num = v => (v === '' || v == null || isNaN(+v)) ? null : +v;
   const prev = state.editingId != null ? state.yerbas.find(x => x.id === state.editingId) : null;
-  const puntajes = {};
-  CRITERIOS.forEach(c => { puntajes[c.key] = formStars[c.key].get(); });
-  const tags = [...new Set(f.tags.value.split(',').map(t => t.trim().toLowerCase()).filter(Boolean))];
+  // Al editar se conservan los datos que ya no muestra el formulario (yerbas cargadas con la versión anterior).
+  const { id: ignorado, creado, actualizado, ...anterior } = prev || {};
 
   const obj = {
+    ...anterior,
     estado, nombre,
     marca: f.marca.value.trim(),
-    tipo: f.tipo.value, origen: f.origen.value, molienda: f.molienda.value, modo: f.modo.value,
-    estacionamiento: num(f.estacionamiento.value),
+    tipo: f.tipo.value,
     gramos: num(f.gramos.value),
     precio: num(f.precio.value),
-    lugar: f.lugar.value.trim(),
-    fecha: f.fecha.value || (estado === 'probada' ? hoy() : ''),
-    puntajes,
+    fecha: estado === 'probada' ? (f.fecha.value || hoy()) : '',
+    primer_mate: formStars.primer_mate.get(),
     general: formStars.general.get(),
-    recompra: f.recompra.value,
     favorita: f.favorita.checked,
-    pros: f.pros.value.trim(), contras: f.contras.value.trim(), notas: f.notas.value.trim(),
-    tags,
+    notas: f.notas.value.trim(),
     fotos: [],
   };
 
   const uploaded = [];
+  let fotoError = null;
   let persisted = false;
   let saveAttempted = false;
   submit.disabled = true;
+  submit.textContent = 'Guardando…';
   try {
+    // Si una foto no se puede subir, la yerba se guarda igual (sin esa foto) y se avisa el motivo.
     for (const photo of state.formFotos) {
-      if (photo.existing) obj.fotos.push(photo.url);
-      else {
+      if (photo.existing) { obj.fotos.push(photo.url); continue; }
+      if (fotoError) continue;
+      try {
         const url = await subirFoto(photo.blob);
         uploaded.push(url);
         obj.fotos.push(url);
+      } catch (error) {
+        if (error.status === 401) throw error;
+        fotoError = error;
       }
     }
     saveAttempted = true;
@@ -692,7 +629,8 @@ async function guardar(e) {
     state.dirty = false;
     $('#dlg-form').close();
     await recargar();
-    toast(prev ? 'Cambios guardados' : 'Yerba guardada 🧉');
+    if (fotoError) toast(`La yerba se guardó, pero sin las fotos nuevas: ${fotoError.message}`, { error: true });
+    else toast(prev ? 'Cambios guardados' : 'Yerba guardada 🧉');
     if (state.detailId === saved.id && $('#dlg-detail').open) abrirDetalle(saved.id);
   } catch (error) {
     const safeToDelete = !saveAttempted || (error.status && error.status < 500);
@@ -701,11 +639,12 @@ async function guardar(e) {
       catch { console.error('No se pudo limpiar una foto recién subida.'); }
     }
     else if (!persisted && uploaded.length) console.error('No se borran las fotos porque el resultado del guardado pudo ser ambiguo.');
-    toast(persisted
-      ? `La yerba se guardó, pero no pude actualizar la lista: ${error.message}`
-      : `No pude guardar la yerba: ${error.message}`);
+    console.error('Error al guardar la yerba:', error);
+    if (persisted) toast(`La yerba se guardó, pero no pude actualizar la lista: ${error.message}`, { error: true });
+    else mostrarErrorForm(`No pude guardar la yerba: ${error.message}`);
   } finally {
     submit.disabled = false;
+    submit.textContent = 'Guardar yerba';
   }
 }
 
@@ -771,9 +710,11 @@ function renderStats() {
   const gasto = sum(probadas.map(y => y.precio || 0));
   const promKg = avg(probadas.map(precioKg).filter(v => v != null));
   const favs = state.yerbas.filter(y => y.favorita).length;
+  const conPrimerMate = probadas.filter(y => y.primer_mate > 0);
+  const promPrimer = avg(conPrimerMate.map(y => y.primer_mate));
 
   const top = [...rated].sort((a, b) => b.general - a.general).slice(0, 5);
-  const valor = probadas.filter(y => y.puntajes?.precio > 0).sort((a, b) => b.puntajes.precio - a.puntajes.precio).slice(0, 3);
+  const topPrimer = [...conPrimerMate].sort((a, b) => b.primer_mate - a.primer_mate).slice(0, 5);
 
   // histograma
   const cubos = Array.from({ length: 10 }, (_, i) => ({ v: (i + 1) / 2, n: 0 }));
@@ -793,21 +734,15 @@ function renderStats() {
   });
   const maxM = Math.max(1, ...meses.map(m => m.n));
 
-  // perfil promedio
-  const perfil = {};
-  CRITERIOS.forEach(c => { perfil[c.key] = avg(probadas.map(y => y.puntajes?.[c.key]).filter(v => v > 0)) || 0; });
-  const hayPerfil = Object.values(perfil).some(v => v > 0);
-
   const porTipo = agrupar(probadas, y => y.tipo).filter(g => g.prom != null).sort((a, b) => b.prom - a.prom);
-  const porOrigen = agrupar(probadas, y => y.origen).sort((a, b) => b.n - a.n);
   const porMarca = agrupar(probadas, y => y.marca).filter(g => g.prom != null).sort((a, b) => b.prom - a.prom || b.n - a.n).slice(0, 8);
-  const maxOrigen = Math.max(1, ...porOrigen.map(g => g.n));
 
   root.innerHTML = `
     <div class="kpis">
       <div class="kpi"><span class="kpi-n">${probadas.length}</span><span class="kpi-l">yerbas probadas</span></div>
       <div class="kpi"><span class="kpi-n">${quiero.length}</span><span class="kpi-l">en la lista de deseos</span></div>
       <div class="kpi"><span class="kpi-n">${prom != null ? fmtRate(prom) + ' ★' : '—'}</span><span class="kpi-l">puntaje promedio</span></div>
+      <div class="kpi"><span class="kpi-n">${promPrimer != null ? fmtRate(promPrimer) + ' ★' : '—'}</span><span class="kpi-l">primer mate promedio</span></div>
       <div class="kpi"><span class="kpi-n">${money(gasto)}</span><span class="kpi-l">gastado en total</span></div>
       <div class="kpi"><span class="kpi-n">${promKg != null ? money(promKg) : '—'}</span><span class="kpi-l">precio promedio por kg</span></div>
       <div class="kpi"><span class="kpi-n">${favs}</span><span class="kpi-l">favoritas</span></div>
@@ -816,14 +751,10 @@ function renderStats() {
     <div class="panels">
       <section class="panel"><h3>🏆 Mi top 5</h3><p class="sub">Las mejor puntuadas</p>${rankHTML(top, y => fmtRate(y.general) + ' ★')}</section>
 
-      <section class="panel"><h3>💸 Mejor relación precio / calidad</h3><p class="sub">Según tu criterio de precio</p>${rankHTML(valor, y => fmtRate(y.puntajes.precio) + ' ★')}</section>
+      <section class="panel"><h3>🧉 Mejor primer mate</h3><p class="sub">Las que mejor arrancan</p>${rankHTML(topPrimer, y => fmtRate(y.primer_mate) + ' ★')}</section>
 
       <section class="panel"><h3>Distribución de puntajes</h3><p class="sub">Cuántas yerbas recibieron cada nota</p>
         ${rated.length ? `<div class="hist">${cubos.map(c => `<div class="col ${c.n ? '' : 'empty'}"><span class="n">${c.n || ''}</span><span class="bar" style="height:${(c.n / maxN) * 100}%"></span><span class="x">${fmtRate(c.v).replace(',0', '')}</span></div>`).join('')}</div>` : '<p class="muted small">Puntuá alguna yerba para ver esto.</p>'}
-      </section>
-
-      <section class="panel"><h3>Tu paladar</h3><p class="sub">Promedio de cada criterio en todas tus yerbas</p>
-        ${hayPerfil ? radarSVG([{ values: perfil, color: COLORES[0] }], { size: 360 }) : '<p class="muted small">Cargá puntajes por criterio para ver tu perfil.</p>'}
       </section>
 
       <section class="panel"><h3>Promedio por tipo</h3><p class="sub">Qué tipo de yerba te gusta más</p>
@@ -832,10 +763,6 @@ function renderStats() {
 
       <section class="panel"><h3>Promedio por marca</h3><p class="sub">Top 8 (el número es cuántas probaste)</p>
         ${barList(porMarca.map(g => ({ label: g.label, value: g.prom, n: g.n })), 5, i => `${fmtRate(i.value)} ★ · ${i.n}`)}
-      </section>
-
-      <section class="panel"><h3>Por origen</h3><p class="sub">Cuántas probaste de cada zona</p>
-        ${barList(porOrigen.map(g => ({ label: g.label, value: g.n })), maxOrigen, i => i.value)}
       </section>
 
       <section class="panel"><h3>Yerbas probadas por mes</h3><p class="sub">Últimos 12 meses</p>
@@ -865,20 +792,18 @@ async function exportarJSON() {
 
 function exportarCSV() {
   if (!state.yerbas.length) { toast('No hay nada para exportar todavía'); return; }
-  const cab = ['Nombre', 'Marca', 'Estado', 'Tipo', 'Origen', 'Molienda', 'Modo', 'Estacionamiento (meses)', 'Contenido (g)', 'Precio', 'Precio por kg', 'Comprada en', 'Fecha',
-    'General', ...CRITERIOS.map(c => c.label), 'Recompra', 'Favorita', 'Etiquetas', 'Lo bueno', 'Lo malo', 'Notas'];
+  const cab = ['Nombre', 'Marca', 'Estado', 'Tipo', 'Contenido (g)', 'Precio', 'Precio por kg', 'Fecha', 'Primer mate', 'General', 'Favorita', 'Notas'];
   const cel = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
   const filas = state.yerbas.map(y => [
-    y.nombre, y.marca, y.estado === 'probada' ? 'Probada' : 'Quiero probar', y.tipo, y.origen, y.molienda, y.modo, y.estacionamiento, y.gramos, y.precio,
-    precioKg(y) ? Math.round(precioKg(y)) : '', y.lugar, y.fecha, y.general || '',
-    ...CRITERIOS.map(c => y.puntajes?.[c.key] || ''), y.recompra ? RECOMPRA[y.recompra] : '', y.favorita ? 'Sí' : '', (y.tags || []).join(', '), y.pros, y.contras, y.notas,
+    y.nombre, y.marca, y.estado === 'probada' ? 'Probada' : 'Quiero probar', y.tipo, y.gramos, y.precio,
+    precioKg(y) ? Math.round(precioKg(y)) : '', y.fecha, y.primer_mate || '', y.general || '', y.favorita ? 'Sí' : '', y.notas,
   ].map(cel).join(';'));
   const csv = '﻿' + [cab.map(cel).join(';'), ...filas].join('\r\n');
   descargar(`yerbario-${hoy()}.csv`, new Blob([csv], { type: 'text/csv;charset=utf-8' }));
 }
 
 function normalizar(r) {
-  const puntajes = r.puntajes ?? Object.fromEntries(CRITERIOS.map(c => [c.key, 0]));
+  const puntajes = r.puntajes ?? { sabor: 0, aroma: 0, amargor: 0, espuma: 0, rendimiento: 0, polvo: 0, precio: 0 };
   return {
     creado: r.creado ?? null,
     actualizado: r.actualizado ?? null,
@@ -891,6 +816,7 @@ function normalizar(r) {
     fecha: r.fecha ?? '',
     puntajes,
     general: r.general ?? 0,
+    primer_mate: r.primer_mate ?? 0,
     recompra: r.recompra ?? '',
     favorita: r.favorita ?? false,
     pros: r.pros ?? '', contras: r.contras ?? '', notas: r.notas ?? '',
@@ -1000,25 +926,20 @@ async function migrarDatosLocales() {
 
 async function cargarEjemplos() {
   const base = (o) => ({
-    creado: Date.now(), actualizado: Date.now(), estado: 'probada', marca: '', tipo: '', origen: '', molienda: '', modo: 'Amargo',
-    estacionamiento: null, gramos: 1000, precio: null, lugar: '', fecha: hoy(), recompra: '', favorita: false, pros: '', contras: '',
-    notas: 'Dato de ejemplo: editalo o borralo cuando quieras.', tags: ['ejemplo'], fotos: [], general: 0,
-    puntajes: { sabor: 0, aroma: 0, amargor: 0, espuma: 0, rendimiento: 0, polvo: 0, precio: 0 }, ...o,
+    creado: Date.now(), actualizado: Date.now(), estado: 'probada', marca: '', tipo: '',
+    gramos: 1000, precio: null, fecha: hoy(), favorita: false,
+    notas: 'Dato de ejemplo: editalo o borralo cuando quieras.', fotos: [], general: 0, primer_mate: 0, ...o,
   });
   const items = [
-    base({ nombre: 'Tradicional con palo 1 kg', marca: 'Selva Verde', tipo: TIPOS[0], origen: 'Misiones', molienda: 'Media', precio: 9800, lugar: 'Supermercado', fecha: '2026-09-02',
-      general: 4, recompra: 'si', favorita: true, pros: 'Sabor parejo, espuma buena.', contras: 'Un poco de polvo al final.',
-      puntajes: { sabor: 4, aroma: 4, amargor: 4, espuma: 4.5, rendimiento: 4, polvo: 3, precio: 4 }, tags: ['ejemplo', 'mañana'] }),
-    base({ nombre: 'Suave despalada', marca: 'Don Ceferino', tipo: TIPOS[1], origen: 'Corrientes', molienda: 'Fina', precio: 13500, lugar: 'Almacén', fecha: '2026-09-15',
-      general: 3.5, recompra: 'tal', pros: 'Muy suave, ideal para arrancar el día.', contras: 'Se lava rápido.',
-      puntajes: { sabor: 4, aroma: 3.5, amargor: 3, espuma: 3, rendimiento: 2.5, polvo: 3.5, precio: 3 }, tags: ['ejemplo', 'suave'] }),
-    base({ nombre: 'Compuesta con menta y boldo', marca: 'Cerro Bravo', tipo: TIPOS[2], origen: 'Paraguay', molienda: 'Gruesa', gramos: 500, precio: 6200, lugar: 'Dietética', fecha: '2026-10-01',
-      general: 3, recompra: 'tal', pros: 'Aroma fresco.', contras: 'Tapa la bombilla.',
-      puntajes: { sabor: 3.5, aroma: 4.5, amargor: 3, espuma: 2.5, rendimiento: 3, polvo: 2, precio: 3.5 }, tags: ['ejemplo', 'tarde'] }),
-    base({ nombre: 'Orgánica estacionada', marca: 'La Reserva', tipo: TIPOS[3], origen: 'Misiones', molienda: 'Media', gramos: 500, precio: 8900, lugar: 'Online', fecha: '2026-10-10', estacionamiento: 18,
-      general: 4.5, recompra: 'si', favorita: true, pros: 'Gusto profundo y duradero.', contras: 'Cara.',
-      puntajes: { sabor: 5, aroma: 4.5, amargor: 4.5, espuma: 4, rendimiento: 5, polvo: 4, precio: 3 }, tags: ['ejemplo', 'fin de semana'] }),
-    base({ nombre: 'Barbacuá ahumada', marca: 'Selva Verde', estado: 'quiero', tipo: TIPOS[4], origen: 'Brasil', gramos: 500, fecha: '', notas: 'Dato de ejemplo: me la recomendaron para probar.', tags: ['ejemplo'] }),
+    base({ nombre: 'Tradicional con palo 1 kg', marca: 'Selva Verde', tipo: TIPOS[0], precio: 9800, fecha: '2026-09-02',
+      general: 4, primer_mate: 4.5, favorita: true, notas: 'Dato de ejemplo: sabor parejo, buena espuma.' }),
+    base({ nombre: 'Suave despalada', marca: 'Don Ceferino', tipo: TIPOS[1], precio: 13500, fecha: '2026-09-15',
+      general: 3.5, primer_mate: 3, notas: 'Dato de ejemplo: muy suave, se lava rápido.' }),
+    base({ nombre: 'Compuesta con menta y boldo', marca: 'Cerro Bravo', tipo: TIPOS[2], gramos: 500, precio: 6200, fecha: '2026-10-01',
+      general: 3, primer_mate: 4 }),
+    base({ nombre: 'Orgánica', marca: 'La Reserva', tipo: TIPOS[3], gramos: 500, precio: 8900, fecha: '2026-10-10',
+      general: 4.5, primer_mate: 5, favorita: true }),
+    base({ nombre: 'Barbacuá ahumada', marca: 'Selva Verde', estado: 'quiero', tipo: TIPOS[4], gramos: 500, fecha: '', notas: 'Dato de ejemplo: me la recomendaron para probar.' }),
   ];
   try {
     const count = await importarEnLotes(items);
@@ -1102,7 +1023,7 @@ function bindEventos() {
   // Filtros
   const filtro = (sel, key, parse = v => v) => $(sel).addEventListener('change', e => { state.filtros[key] = parse(e.target.value); renderGrid(); });
   $('#f-q').addEventListener('input', debounce(e => { state.filtros.q = e.target.value; renderGrid(); }));
-  filtro('#f-estado', 'estado'); filtro('#f-tipo', 'tipo'); filtro('#f-origen', 'origen'); filtro('#f-tag', 'tag');
+  filtro('#f-estado', 'estado'); filtro('#f-tipo', 'tipo');
   filtro('#f-min', 'min', Number); filtro('#f-orden', 'orden');
   $('#f-fav').addEventListener('click', e => {
     state.filtros.fav = !state.filtros.fav;
@@ -1185,13 +1106,6 @@ function bindEventos() {
   form.addEventListener('change', e => { state.dirty = true; if (e.target.name === 'estado') aplicarEstadoForm(); });
   form.elements.precio.addEventListener('input', actualizarPrecioKg);
   form.elements.gramos.addEventListener('input', actualizarPrecioKg);
-
-  $('#btn-promedio').addEventListener('click', () => {
-    const v = CRITERIOS.map(c => formStars[c.key].get()).filter(x => x > 0);
-    if (!v.length) { toast('Primero puntuá algún criterio'); return; }
-    formStars.general.set(Math.round(avg(v) * 2) / 2);
-    state.dirty = true;
-  });
 
   // Fotos
   const dz = $('#dropzone'), inp = $('#file-fotos');
