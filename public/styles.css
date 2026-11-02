@@ -269,6 +269,22 @@ legend { padding: 0 8px; font-family: var(--font-head); font-weight: 700; font-s
   border: 1px solid var(--line); background: var(--bg); border-radius: 11px; padding: 9px 12px; font-weight: 500; color: var(--ink); width: 100%;
 }
 .f textarea { resize: vertical; min-height: 70px; }
+
+/* Mates en los que se tomó la yerba */
+.mates-list { display: grid; gap: 12px; margin: 10px 0 12px; }
+.mates-list:empty { display: none; }
+.mate-row { display: grid; gap: 10px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-2); }
+.mate-top { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 16px; }
+.mate-top .f { flex: 1 1 200px; }
+.mate-stars { display: flex; flex-direction: column; gap: 5px; }
+.mate-stars-label { font-size: 13px; font-weight: 700; color: var(--muted); }
+.mate-x { align-self: flex-start; margin-left: auto; }
+.mate-row .f textarea { min-height: 54px; }
+.mates-ro { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.mates-ro li { background: var(--surface-2); border-radius: 12px; padding: 10px 12px; }
+.mates-ro-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.mates-ro-head .v { font-weight: 800; }
+.mates-ro p { margin-top: 4px; color: var(--muted); white-space: pre-wrap; overflow-wrap: anywhere; }
 .f input:focus, .f select:focus, .f textarea:focus { outline: 2px solid var(--primary); border-color: transparent; }
 .hint { font-weight: 500; color: var(--accent); min-height: 1em; }
 .check { display: flex; align-items: center; gap: 10px; font-weight: 700; align-self: end; padding-bottom: 8px; cursor: pointer; }

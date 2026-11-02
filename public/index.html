@@ -155,6 +155,9 @@
           <label class="f only-probada">Fecha en que la probé
             <input name="fecha" type="date">
           </label>
+          <label class="f only-probada">Cómo la tomé
+            <select name="modo"></select>
+          </label>
         </div>
       </fieldset>
 
@@ -175,6 +178,14 @@
         </div>
         <label class="check"><input type="checkbox" name="favorita"> <span>♥ Marcar como favorita</span></label>
       </fieldset>
+
+      <fieldset class="only-probada">
+        <legend>Mates en los que la tomé</legend>
+        <p class="muted small">Agregá cada mate que usaste (calabaza, algarrobo…) con su puntaje y qué diferencias notaste.</p>
+        <div id="mates-list" class="mates-list"></div>
+        <button type="button" id="btn-add-mate" class="btn ghost sm">+ Agregar mate</button>
+      </fieldset>
+      <datalist id="dl-materiales"></datalist>
 
       <fieldset>
         <legend>Notas</legend>

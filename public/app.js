@@ -17,6 +17,9 @@ const CRITERIOS = [
 ];
 const TIPOS = ['Con palo (tradicional)', 'Despalada / sin palo', 'Compuesta con hierbas', 'Orgánica', 'Barbacuá / ahumada', 'Saborizada', 'Suave / baja astringencia', 'Otra'];
 const COLORES = ['#2f7d4f', '#d9822b', '#4a6fa5'];
+const MODOS = ['Amargo', 'Dulce', 'Tereré', 'Cocido'];
+const MATERIALES = ['Calabaza', 'Algarrobo', 'Palo santo', 'Madera', 'Cerámica', 'Vidrio', 'Acero inoxidable', 'Silicona', 'Imperial', 'Camionero', 'Torpedo'];
+const MAX_MATES = 10;
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 const MAX_FOTOS = 6;
 
@@ -282,7 +285,7 @@ function filtradas() {
     if (f.fav && !y.favorita) return false;
     if (f.min && !(y.general >= f.min)) return false;
     if (q) {
-      const hay = [y.nombre, y.marca, y.notas, y.tipo].join(' ').toLowerCase();
+      const hay = [y.nombre, y.marca, y.notas, y.tipo, y.modo, ...(y.mates || []).flatMap(m => [m.material, m.notas])].join(' ').toLowerCase();
       if (!hay.includes(q)) return false;
     }
     return true;
@@ -414,6 +417,7 @@ function detalleHTML(y, urls) {
   const quiero = y.estado === 'quiero';
   const hechos = [
     ['Tipo', y.tipo],
+    ['Cómo la tomé', y.modo],
     ['Contenido', y.gramos ? `${y.gramos} g` : ''],
     ['Precio', y.precio != null ? money(y.precio) : ''],
     ['Precio por kg', kg ? money(kg) : ''],
@@ -457,6 +461,7 @@ function detalleHTML(y, urls) {
             </div>
           </div>`;
         })() : ''}
+        ${!quiero && y.mates?.length ? `<div class="detail-block"><h4>Mates en los que la tomé</h4>${matesHTML(y.mates)}</div>` : ''}
         ${y.notas ? `<div class="notes"><h4>Notas</h4><p>${esc(y.notas)}</p></div>` : ''}
         <div class="detail-actions">
           <button type="button" id="detail-fav" class="btn ghost" aria-pressed="${!!y.favorita}" data-act="d-fav">${y.favorita ? '♥ Favorita' : '♡ Marcar favorita'}</button>
@@ -493,6 +498,9 @@ function abrirComparar() {
     fila('Precio por kg', y => precioKg(y), (y, v) => v ? money(v) : '—', 'min'),
     fila('Contenido', y => y.gramos, (y, v) => v ? `${v} g` : '—'),
     fila('Tipo', y => y.tipo, (y, v) => txt(v)),
+    fila('Cómo la tomé', y => y.modo, (y, v) => txt(v)),
+    fila('Mates', y => y.mates || [], (y, v) => v.length
+      ? v.map(m => `${esc(m.material)}${m.puntaje ? ` · ${fmtRate(m.puntaje)} ★` : ''}`).join('<br>') : '—'),
   ].join('');
 
   $('#compare-body').innerHTML = `
@@ -522,11 +530,52 @@ function opciones(arr, vacio) {
 function montarForm() {
   const f = $('#form-yerba').elements;
   f.tipo.innerHTML = opciones(TIPOS, '— elegir —');
+  f.modo.innerHTML = opciones(MODOS, '— elegir —');
   $('#crit-list').insertAdjacentHTML('beforeend', CRITERIOS.map(c =>
     `<div class="crit-row"><div class="crit-name"><b>${c.label}</b><small>${c.hint}</small></div><div data-crit="${c.key}"></div></div>`).join(''));
   $$('#form-yerba [data-crit]').forEach(el => {
     formStars[el.dataset.crit] = mountStarInput(el, 0, () => { state.dirty = true; });
   });
+}
+
+/* ---------- Mates del formulario ---------- */
+const mateStars = new WeakMap();
+
+function agregarFilaMate(m = {}) {
+  const list = $('#mates-list');
+  if (list.children.length >= MAX_MATES) { toast(`Hasta ${MAX_MATES} mates por yerba`); return; }
+  const row = document.createElement('div');
+  row.className = 'mate-row';
+  row.innerHTML = `
+    <div class="mate-top">
+      <label class="f">Tipo de mate
+        <input class="mate-material" list="dl-materiales" maxlength="40" placeholder="Ej: Calabaza, Algarrobo…">
+      </label>
+      <div class="mate-stars"><span class="mate-stars-label">Puntaje en este mate</span><div class="mate-star-input"></div></div>
+      <button type="button" class="icon-btn mate-x" data-act="rm-mate" aria-label="Quitar este mate">✕</button>
+    </div>
+    <label class="f">Diferencias / notas
+      <textarea class="mate-notas" rows="2" maxlength="400" placeholder="Qué cambió con este mate: sabor, temperatura, espuma…"></textarea>
+    </label>`;
+  $('.mate-material', row).value = m.material ?? '';
+  $('.mate-notas', row).value = m.notas ?? '';
+  mateStars.set(row, mountStarInput($('.mate-star-input', row), m.puntaje ?? 0, () => { state.dirty = true; }));
+  list.appendChild(row);
+  return row;
+}
+
+function leerMates() {
+  return $$('#mates-list .mate-row').map(row => ({
+    material: $('.mate-material', row).value.trim(),
+    puntaje: mateStars.get(row).get(),
+    notas: $('.mate-notas', row).value.trim(),
+  })).filter(m => m.material || m.notas || m.puntaje);
+}
+
+function matesHTML(lista) {
+  return `<ul class="mates-ro">${lista.map(m => `<li>
+    <div class="mates-ro-head"><b>${esc(m.material)}</b><span>${stars(m.puntaje, 'sm')} <span class="v">${m.puntaje ? fmtRate(m.puntaje) : '—'}</span></span></div>
+    ${m.notas ? `<p>${esc(m.notas)}</p>` : ''}</li>`).join('')}</ul>`;
 }
 
 function actualizarPrecioKg() {
@@ -552,6 +601,11 @@ function abrirForm(id = null) {
   f.fecha.value = y ? (y.fecha ?? '') : hoy();
   f.favorita.checked = !!y?.favorita;
   f.notas.value = y?.notas ?? '';
+  f.modo.value = y?.modo ?? '';
+  $('#mates-list').innerHTML = '';
+  (y?.mates || []).forEach(m => agregarFilaMate(m));
+  const materiales = [...new Set([...MATERIALES, ...state.yerbas.flatMap(x => (x.mates || []).map(m => m.material))].filter(Boolean))];
+  $('#dl-materiales').innerHTML = materiales.map(m => `<option value="${esc(m)}">`).join('');
 
   formStars.primer_mate.set(y?.primer_mate ?? 0);
   CRITERIOS.forEach(c => formStars[c.key].set(y?.puntajes?.[c.key] ?? 0));
@@ -631,6 +685,12 @@ async function guardar(e) {
   mostrarErrorForm('');
 
   const estado = f.estado.value;
+  const mates = estado === 'probada' ? leerMates() : [];
+  if (mates.some(m => !m.material)) {
+    mostrarErrorForm('Poné el tipo de mate (calabaza, algarrobo…) en cada mate que agregaste.');
+    $$('#mates-list .mate-material').find(i => !i.value.trim())?.focus();
+    return;
+  }
   const num = v => (v === '' || v == null || isNaN(+v)) ? null : +v;
   const prev = state.editingId != null ? state.yerbas.find(x => x.id === state.editingId) : null;
   // Al editar se conservan los datos que ya no muestra el formulario (yerbas cargadas con la versión anterior).
@@ -644,6 +704,8 @@ async function guardar(e) {
     gramos: num(f.gramos.value),
     precio: num(f.precio.value),
     fecha: estado === 'probada' ? (f.fecha.value || hoy()) : '',
+    modo: estado === 'probada' ? f.modo.value : (anterior.modo ?? ''),
+    mates: estado === 'probada' ? mates : (anterior.mates ?? []),
     primer_mate: formStars.primer_mate.get(),
     puntajes: Object.fromEntries(CRITERIOS.map(c => [c.key, formStars[c.key].get()])),
     general: formStars.general.get(),
@@ -792,6 +854,14 @@ function renderStats() {
 
   const porTipo = agrupar(probadas, y => y.tipo).filter(g => g.prom != null).sort((a, b) => b.prom - a.prom);
   const porMarca = agrupar(probadas, y => y.marca).filter(g => g.prom != null).sort((a, b) => b.prom - a.prom || b.n - a.n).slice(0, 8);
+  // Promedio del puntaje de cada tipo de mate, juntando todas las yerbas (sin distinguir mayúsculas).
+  const matesPorTipo = new Map();
+  probadas.flatMap(y => y.mates || []).filter(m => m.puntaje > 0).forEach(m => {
+    const k = m.material.trim().toLowerCase();
+    if (!matesPorTipo.has(k)) matesPorTipo.set(k, { label: m.material.trim(), vals: [] });
+    matesPorTipo.get(k).vals.push(m.puntaje);
+  });
+  const porMate = [...matesPorTipo.values()].map(g => ({ label: g.label, value: avg(g.vals), n: g.vals.length })).sort((a, b) => b.value - a.value || b.n - a.n);
 
   root.innerHTML = `
     <div class="kpis">
@@ -830,6 +900,10 @@ function renderStats() {
       <section class="panel"><h3>Promedio por marca</h3><p class="sub">Top 8 (el número es cuántas probaste)</p>
         ${barList(porMarca.map(g => ({ label: g.label, value: g.prom, n: g.n })), 5, i => `${fmtRate(i.value)} ★ · ${i.n}`)}
       </section>
+
+      <section class="panel"><h3>Promedio por tipo de mate</h3><p class="sub">En qué mate te gusta más (el número es cuántas veces lo puntuaste)</p>
+        ${barList(porMate, 5, i => `${fmtRate(i.value)} ★ · ${i.n}`)}
+      </section>
     </div>`;
 }
 
@@ -854,11 +928,12 @@ async function exportarJSON() {
 
 function exportarCSV() {
   if (!state.yerbas.length) { toast('No hay nada para exportar todavía'); return; }
-  const cab = ['Nombre', 'Marca', 'Estado', 'Tipo', 'Contenido (g)', 'Precio', 'Precio por kg', 'Fecha', 'Primer mate', ...CRITERIOS.map(c => c.label), 'General', 'Favorita', 'Notas'];
+  const cab = ['Nombre', 'Marca', 'Estado', 'Tipo', 'Contenido (g)', 'Precio', 'Precio por kg', 'Fecha', 'Cómo la tomé', 'Primer mate', ...CRITERIOS.map(c => c.label), 'General', 'Favorita', 'Mates', 'Notas'];
   const cel = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
   const filas = state.yerbas.map(y => [
     y.nombre, y.marca, y.estado === 'probada' ? 'Probada' : 'Quiero probar', y.tipo, y.gramos, y.precio,
-    precioKg(y) ? Math.round(precioKg(y)) : '', y.fecha, y.primer_mate || '', ...CRITERIOS.map(c => y.puntajes?.[c.key] || ''), y.general || '', y.favorita ? 'Sí' : '', y.notas,
+    precioKg(y) ? Math.round(precioKg(y)) : '', y.fecha, y.modo, y.primer_mate || '', ...CRITERIOS.map(c => y.puntajes?.[c.key] || ''), y.general || '', y.favorita ? 'Sí' : '',
+    (y.mates || []).map(m => `${m.material}${m.puntaje ? ` (${fmtRate(m.puntaje)})` : ''}${m.notas ? `: ${m.notas}` : ''}`).join(' | '), y.notas,
   ].map(cel).join(';'));
   const csv = '﻿' + [cab.map(cel).join(';'), ...filas].join('\r\n');
   descargar(`yerbario-${hoy()}.csv`, new Blob([csv], { type: 'text/csv;charset=utf-8' }));
@@ -879,6 +954,7 @@ function normalizar(r) {
     puntajes,
     general: r.general ?? 0,
     primer_mate: r.primer_mate ?? 0,
+    mates: r.mates ?? [],
     recompra: r.recompra ?? '',
     favorita: r.favorita ?? false,
     pros: r.pros ?? '', contras: r.contras ?? '', notas: r.notas ?? '',
@@ -1168,6 +1244,17 @@ function bindEventos() {
   form.addEventListener('change', e => { state.dirty = true; if (e.target.name === 'estado') aplicarEstadoForm(); });
   form.elements.precio.addEventListener('input', actualizarPrecioKg);
   form.elements.gramos.addEventListener('input', actualizarPrecioKg);
+
+  $('#btn-add-mate').addEventListener('click', () => {
+    const row = agregarFilaMate();
+    if (row) { $('.mate-material', row).focus(); state.dirty = true; }
+  });
+  $('#mates-list').addEventListener('click', e => {
+    const b = e.target.closest('[data-act="rm-mate"]');
+    if (!b) return;
+    b.closest('.mate-row').remove();
+    state.dirty = true;
+  });
 
   $('#btn-promedio').addEventListener('click', () => {
     const v = ['primer_mate', ...CRITERIOS.map(c => c.key)].map(k => formStars[k].get()).filter(x => x > 0);

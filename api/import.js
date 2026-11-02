@@ -72,7 +72,7 @@ export default async function handler(req, res) {
           estado text, nombre text, marca text, tipo text, origen text, molienda text, modo text,
           estacionamiento integer, gramos integer, precio numeric, lugar text, fecha date,
           puntajes jsonb, general numeric, recompra text, favorita boolean, pros text,
-          contras text, notas text, tags text[], fotos jsonb, primer_mate numeric, creado timestamptz, actualizado timestamptz
+          contras text, notas text, tags text[], fotos jsonb, primer_mate numeric, mates jsonb, creado timestamptz, actualizado timestamptz
         )
       ), deduplicated AS (
         SELECT DISTINCT ON (lower(nombre), lower(marca), fecha) *
@@ -82,11 +82,11 @@ export default async function handler(req, res) {
         INSERT INTO yerbas (
           estado, nombre, marca, tipo, origen, molienda, modo, estacionamiento, gramos,
           precio, lugar, fecha, puntajes, general, recompra, favorita, pros, contras,
-          notas, tags, fotos, primer_mate, creado, actualizado, user_id
+          notas, tags, fotos, primer_mate, mates, creado, actualizado, user_id
         )
         SELECT i.estado, i.nombre, i.marca, i.tipo, i.origen, i.molienda, i.modo,
           i.estacionamiento, i.gramos, i.precio, i.lugar, i.fecha, i.puntajes,
-          i.general, i.recompra, i.favorita, i.pros, i.contras, i.notas, i.tags, i.fotos, i.primer_mate,
+          i.general, i.recompra, i.favorita, i.pros, i.contras, i.notas, i.tags, i.fotos, i.primer_mate, i.mates,
           COALESCE(i.creado, now()), COALESCE(i.actualizado, i.creado, now()), ${session.id}
         FROM deduplicated i
         WHERE NOT EXISTS (

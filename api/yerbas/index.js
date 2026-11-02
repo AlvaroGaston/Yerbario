@@ -54,7 +54,7 @@ export default async function handler(req, res) {
         modo = ${record.modo}, estacionamiento = ${record.estacionamiento}, gramos = ${record.gramos},
         precio = ${record.precio}, lugar = ${record.lugar}, fecha = ${record.fecha},
         puntajes = ${JSON.stringify(record.puntajes)}::jsonb, general = ${record.general},
-        primer_mate = ${record.primer_mate},
+        primer_mate = ${record.primer_mate}, mates = ${JSON.stringify(record.mates)}::jsonb,
         recompra = ${record.recompra}, favorita = ${record.favorita}, pros = ${record.pros},
         contras = ${record.contras}, notas = ${record.notas}, tags = ${record.tags},
         fotos = ${JSON.stringify(record.fotos)}::jsonb, actualizado = now()
@@ -71,13 +71,13 @@ export default async function handler(req, res) {
     const [row] = await sql`INSERT INTO yerbas (
       estado, nombre, marca, tipo, origen, molienda, modo, estacionamiento, gramos,
       precio, lugar, fecha, puntajes, general, recompra, favorita, pros, contras,
-      notas, tags, fotos, primer_mate, user_id
+      notas, tags, fotos, primer_mate, mates, user_id
     ) VALUES (
       ${record.estado}, ${record.nombre}, ${record.marca}, ${record.tipo}, ${record.origen},
       ${record.molienda}, ${record.modo}, ${record.estacionamiento}, ${record.gramos},
       ${record.precio}, ${record.lugar}, ${record.fecha}, ${JSON.stringify(record.puntajes)}::jsonb,
       ${record.general}, ${record.recompra}, ${record.favorita}, ${record.pros}, ${record.contras},
-      ${record.notas}, ${record.tags}, ${JSON.stringify(record.fotos)}::jsonb, ${record.primer_mate}, ${session.id}
+      ${record.notas}, ${record.tags}, ${JSON.stringify(record.fotos)}::jsonb, ${record.primer_mate}, ${JSON.stringify(record.mates)}::jsonb, ${session.id}
     ) RETURNING *`;
     return json(res, 201, serializeYerba(row));
   } catch (err) {
