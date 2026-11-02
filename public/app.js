@@ -6,7 +6,17 @@
    ========================================================= */
 
 /* ---------- Catálogos ---------- */
+const CRITERIOS = [
+  { key: 'sabor',       label: 'Sabor',            hint: 'Qué tan rica es en boca' },
+  { key: 'aroma',       label: 'Aroma',            hint: 'Olor en el paquete y en el mate' },
+  { key: 'amargor',     label: 'Amargor',          hint: '5 = justo como me gusta' },
+  { key: 'espuma',      label: 'Espuma',           hint: 'Cómo se forma y cuánto dura' },
+  { key: 'rendimiento', label: 'Rendimiento',      hint: 'Cuántos mates aguanta antes de lavarse' },
+  { key: 'polvo',       label: 'Polvo',            hint: '5 = casi no tiene polvo, no tapa la bombilla' },
+  { key: 'precio',      label: 'Precio / calidad', hint: '5 = vale cada peso' },
+];
 const TIPOS = ['Con palo (tradicional)', 'Despalada / sin palo', 'Compuesta con hierbas', 'Orgánica', 'Barbacuá / ahumada', 'Saborizada', 'Suave / baja astringencia', 'Otra'];
+const COLORES = ['#2f7d4f', '#d9822b', '#4a6fa5'];
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 const MAX_FOTOS = 6;
 
@@ -172,6 +182,30 @@ function mountStarInput(el, value, onChange) {
   });
   paint(val);
   return { get: () => val, set: v => { val = v || 0; paint(val); } };
+}
+
+/* ---------- Radar ---------- */
+function radarSVG(series, { size = 360, labels = true } = {}) {
+  const n = CRITERIOS.length, cx = size / 2, cy = size / 2;
+  const R = size / 2 - (labels ? 62 : 14);
+  const pt = (i, v) => { const a = -Math.PI / 2 + i * 2 * Math.PI / n; const r = R * v / 5; return [cx + r * Math.cos(a), cy + r * Math.sin(a), Math.cos(a)]; };
+  let g = '';
+  for (let lv = 1; lv <= 5; lv++) g += `<polygon class="radar-ring" points="${CRITERIOS.map((_, i) => pt(i, lv).slice(0, 2).map(v => v.toFixed(1)).join(',')).join(' ')}"/>`;
+  CRITERIOS.forEach((c, i) => {
+    const [x, y] = pt(i, 5);
+    g += `<line class="radar-axis" x1="${cx}" y1="${cy}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}"/>`;
+    if (labels) {
+      const [lx, ly, co] = pt(i, 5.75);
+      const anchor = co > 0.3 ? 'start' : co < -0.3 ? 'end' : 'middle';
+      g += `<text x="${lx.toFixed(1)}" y="${(ly + 4).toFixed(1)}" text-anchor="${anchor}">${esc(c.label.replace(' / calidad', ''))}</text>`;
+    }
+  });
+  series.forEach(s => {
+    const pts = CRITERIOS.map((c, i) => pt(i, +s.values?.[c.key] || 0));
+    g += `<polygon points="${pts.map(p => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ')}" style="fill:${s.color};fill-opacity:.22;stroke:${s.color};stroke-width:2.2;stroke-linejoin:round"/>`;
+    pts.forEach(p => { g += `<circle class="radar-dot" cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="3.6" style="fill:${s.color}"/>`; });
+  });
+  return `<svg viewBox="0 0 ${size} ${size}" class="radar" role="img" aria-label="Gráfico radar de criterios">${g}</svg>`;
 }
 
 /* ---------- Imágenes ---------- */
@@ -410,10 +444,19 @@ function detalleHTML(y, urls) {
         </div>
         ${y.favorita ? '<div class="badges"><span class="badge">♥ Favorita</span></div>' : ''}
         ${hechos.length ? `<dl class="facts">${hechos.map(h => `<div><dt>${h[0]}</dt><dd>${esc(h[1])}</dd></div>`).join('')}</dl>` : ''}
-        ${!quiero ? `
+        ${!quiero ? (() => {
+          const p = y.puntajes || {};
+          const filaRo = (label, v) => `<li><span>${label}</span><span>${stars(v, 'sm')} <span class="v">${v ? fmtRate(v) : '—'}</span></span></li>`;
+          const hayCriterios = CRITERIOS.some(c => p[c.key] > 0);
+          return `
           <div class="detail-block">
-            <ul class="crit-ro"><li><span>Primer mate</span><span>${stars(y.primer_mate, 'sm')} <span class="v">${y.primer_mate ? fmtRate(y.primer_mate) : '—'}</span></span></li></ul>
-          </div>` : ''}
+            <h4>Valoración</h4>
+            <div class="score-wrap">
+              <ul class="crit-ro">${filaRo('Primer mate', y.primer_mate)}${CRITERIOS.map(c => filaRo(c.label, p[c.key])).join('')}</ul>
+              ${hayCriterios ? radarSVG([{ values: p, color: COLORES[0] }], { size: 360 }) : ''}
+            </div>
+          </div>`;
+        })() : ''}
         ${y.notas ? `<div class="notes"><h4>Notas</h4><p>${esc(y.notas)}</p></div>` : ''}
         <div class="detail-actions">
           <button type="button" id="detail-fav" class="btn ghost" aria-pressed="${!!y.favorita}" data-act="d-fav">${y.favorita ? '♥ Favorita' : '♡ Marcar favorita'}</button>
@@ -445,6 +488,7 @@ function abrirComparar() {
   const filas = [
     fila('Puntaje general', y => y.general, (y, v) => v ? `${stars(v, 'sm')}<br><b>${fmtRate(v)}</b>` : '—', 'max'),
     fila('Primer mate', y => y.primer_mate, (y, v) => v ? `${stars(v, 'sm')} ${fmtRate(v)}` : '—', 'max'),
+    ...CRITERIOS.map(c => fila(c.label, y => y.puntajes?.[c.key], (y, v) => v ? `${stars(v, 'sm')} ${fmtRate(v)}` : '—', 'max')),
     fila('Precio', y => y.precio, (y, v) => money(v), 'min'),
     fila('Precio por kg', y => precioKg(y), (y, v) => v ? money(v) : '—', 'min'),
     fila('Contenido', y => y.gramos, (y, v) => v ? `${v} g` : '—'),
@@ -461,7 +505,11 @@ function abrirComparar() {
           <div class="cmp-name">${esc(y.nombre)}</div></th>`).join('')}</tr></thead>
         <tbody>${filas}</tbody>
       </table>
-      <p class="muted small">Las celdas resaltadas marcan la mejor opción en cada fila.</p>
+      <div class="cmp-chart">
+        ${radarSVG(items.map((y, i) => ({ values: y.puntajes || {}, color: COLORES[i] })), { size: 380 })}
+        <div class="legend">${items.map((y, i) => `<span><i style="background:${COLORES[i]}"></i>${esc(y.nombre)}</span>`).join('')}
+          <p class="muted small">Las celdas resaltadas marcan la mejor opción en cada fila.</p></div>
+      </div>
     </div>`;
   $('#dlg-compare').showModal();
 }
@@ -474,6 +522,8 @@ function opciones(arr, vacio) {
 function montarForm() {
   const f = $('#form-yerba').elements;
   f.tipo.innerHTML = opciones(TIPOS, '— elegir —');
+  $('#crit-list').insertAdjacentHTML('beforeend', CRITERIOS.map(c =>
+    `<div class="crit-row"><div class="crit-name"><b>${c.label}</b><small>${c.hint}</small></div><div data-crit="${c.key}"></div></div>`).join(''));
   $$('#form-yerba [data-crit]').forEach(el => {
     formStars[el.dataset.crit] = mountStarInput(el, 0, () => { state.dirty = true; });
   });
@@ -504,6 +554,7 @@ function abrirForm(id = null) {
   f.notas.value = y?.notas ?? '';
 
   formStars.primer_mate.set(y?.primer_mate ?? 0);
+  CRITERIOS.forEach(c => formStars[c.key].set(y?.puntajes?.[c.key] ?? 0));
   formStars.general.set(y?.general ?? 0);
   mostrarErrorForm('');
 
@@ -594,6 +645,7 @@ async function guardar(e) {
     precio: num(f.precio.value),
     fecha: estado === 'probada' ? (f.fecha.value || hoy()) : '',
     primer_mate: formStars.primer_mate.get(),
+    puntajes: Object.fromEntries(CRITERIOS.map(c => [c.key, formStars[c.key].get()])),
     general: formStars.general.get(),
     favorita: f.favorita.checked,
     notas: f.notas.value.trim(),
@@ -715,6 +767,10 @@ function renderStats() {
 
   const top = [...rated].sort((a, b) => b.general - a.general).slice(0, 5);
   const topPrimer = [...conPrimerMate].sort((a, b) => b.primer_mate - a.primer_mate).slice(0, 5);
+  const valor = probadas.filter(y => y.puntajes?.precio > 0).sort((a, b) => b.puntajes.precio - a.puntajes.precio).slice(0, 3);
+  const perfil = {};
+  CRITERIOS.forEach(c => { perfil[c.key] = avg(probadas.map(y => y.puntajes?.[c.key]).filter(v => v > 0)) || 0; });
+  const hayPerfil = Object.values(perfil).some(v => v > 0);
 
   // histograma
   const cubos = Array.from({ length: 10 }, (_, i) => ({ v: (i + 1) / 2, n: 0 }));
@@ -752,6 +808,12 @@ function renderStats() {
       <section class="panel"><h3>🏆 Mi top 5</h3><p class="sub">Las mejor puntuadas</p>${rankHTML(top, y => fmtRate(y.general) + ' ★')}</section>
 
       <section class="panel"><h3>🧉 Mejor primer mate</h3><p class="sub">Las que mejor arrancan</p>${rankHTML(topPrimer, y => fmtRate(y.primer_mate) + ' ★')}</section>
+
+      <section class="panel"><h3>💸 Mejor relación precio / calidad</h3><p class="sub">Según tu criterio de precio</p>${rankHTML(valor, y => fmtRate(y.puntajes.precio) + ' ★')}</section>
+
+      <section class="panel"><h3>Tu paladar</h3><p class="sub">Promedio de cada criterio en todas tus yerbas</p>
+        ${hayPerfil ? radarSVG([{ values: perfil, color: COLORES[0] }], { size: 360 }) : '<p class="muted small">Cargá puntajes por criterio para ver tu perfil.</p>'}
+      </section>
 
       <section class="panel"><h3>Distribución de puntajes</h3><p class="sub">Cuántas yerbas recibieron cada nota</p>
         ${rated.length ? `<div class="hist">${cubos.map(c => `<div class="col ${c.n ? '' : 'empty'}"><span class="n">${c.n || ''}</span><span class="bar" style="height:${(c.n / maxN) * 100}%"></span><span class="x">${fmtRate(c.v).replace(',0', '')}</span></div>`).join('')}</div>` : '<p class="muted small">Puntuá alguna yerba para ver esto.</p>'}
@@ -792,11 +854,11 @@ async function exportarJSON() {
 
 function exportarCSV() {
   if (!state.yerbas.length) { toast('No hay nada para exportar todavía'); return; }
-  const cab = ['Nombre', 'Marca', 'Estado', 'Tipo', 'Contenido (g)', 'Precio', 'Precio por kg', 'Fecha', 'Primer mate', 'General', 'Favorita', 'Notas'];
+  const cab = ['Nombre', 'Marca', 'Estado', 'Tipo', 'Contenido (g)', 'Precio', 'Precio por kg', 'Fecha', 'Primer mate', ...CRITERIOS.map(c => c.label), 'General', 'Favorita', 'Notas'];
   const cel = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
   const filas = state.yerbas.map(y => [
     y.nombre, y.marca, y.estado === 'probada' ? 'Probada' : 'Quiero probar', y.tipo, y.gramos, y.precio,
-    precioKg(y) ? Math.round(precioKg(y)) : '', y.fecha, y.primer_mate || '', y.general || '', y.favorita ? 'Sí' : '', y.notas,
+    precioKg(y) ? Math.round(precioKg(y)) : '', y.fecha, y.primer_mate || '', ...CRITERIOS.map(c => y.puntajes?.[c.key] || ''), y.general || '', y.favorita ? 'Sí' : '', y.notas,
   ].map(cel).join(';'));
   const csv = '﻿' + [cab.map(cel).join(';'), ...filas].join('\r\n');
   descargar(`yerbario-${hoy()}.csv`, new Blob([csv], { type: 'text/csv;charset=utf-8' }));
@@ -1106,6 +1168,13 @@ function bindEventos() {
   form.addEventListener('change', e => { state.dirty = true; if (e.target.name === 'estado') aplicarEstadoForm(); });
   form.elements.precio.addEventListener('input', actualizarPrecioKg);
   form.elements.gramos.addEventListener('input', actualizarPrecioKg);
+
+  $('#btn-promedio').addEventListener('click', () => {
+    const v = ['primer_mate', ...CRITERIOS.map(c => c.key)].map(k => formStars[k].get()).filter(x => x > 0);
+    if (!v.length) { toast('Primero puntuá algún criterio'); return; }
+    formStars.general.set(Math.round(avg(v) * 2) / 2);
+    state.dirty = true;
+  });
 
   // Fotos
   const dz = $('#dropzone'), inp = $('#file-fotos');

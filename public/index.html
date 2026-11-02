@@ -161,15 +161,17 @@
       <fieldset class="only-probada">
         <legend>Tu valoración</legend>
         <p class="muted small">Tocá una estrella (mitad izquierda = media estrella). Volvé a tocar la misma nota para borrarla.</p>
-        <div class="crit-list">
+        <div id="crit-list" class="crit-list">
           <div class="crit-row">
             <div class="crit-name"><b>Primer mate</b><small>Cómo estuvo la primera cebada</small></div>
             <div data-crit="primer_mate"></div>
           </div>
+          <!-- app.js agrega acá los criterios (sabor, aroma, etc.) -->
         </div>
         <div class="general-row">
           <div class="crit-name"><b>Puntaje general</b><small>Tu nota final, a tu criterio</small></div>
           <div data-crit="general"></div>
+          <button type="button" class="btn ghost sm" id="btn-promedio" title="Calcula el promedio de todas las estrellas que pusiste">Usar promedio</button>
         </div>
         <label class="check"><input type="checkbox" name="favorita"> <span>♥ Marcar como favorita</span></label>
       </fieldset>
