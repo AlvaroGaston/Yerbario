@@ -132,7 +132,7 @@ img { max-width: 100%; display: block; }
 .menu-note { font-size: 12px; color: var(--muted); padding: 8px 12px 4px; }
 
 /* ---------- Layout ---------- */
-main { max-width: 1240px; margin: 0 auto; padding: 22px clamp(14px, 3vw, 32px) 120px; }
+main { max-width: 1360px; margin: 0 auto; padding: 22px clamp(14px, 3vw, 32px) 120px; }
 
 .summary { display: flex; flex-wrap: wrap; gap: 8px 22px; align-items: baseline; margin-bottom: 14px; color: var(--muted); }
 .summary b { color: var(--ink); font-family: var(--font-head); font-size: 22px; margin-right: 4px; }
@@ -360,28 +360,30 @@ legend { padding: 0 8px; font-family: var(--font-head); font-weight: 700; font-s
 .legend i { width: 14px; height: 14px; border-radius: 50%; flex: none; }
 
 /* ---------- Estadísticas ---------- */
-.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; margin-bottom: 18px; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; margin-bottom: 18px; }
 .kpi { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; box-shadow: var(--shadow); }
-.kpi-n { display: block; font-family: var(--font-head); font-size: 34px; font-weight: 700; line-height: 1.1; }
+.kpi-n { display: block; font-family: var(--font-head); font-size: clamp(24px, 2.3vw, 34px); white-space: nowrap; font-weight: 700; line-height: 1.1; }
 .kpi-l { color: var(--muted); font-size: 13px; font-weight: 600; }
-.panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 18px; }
+.panels { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 1fr)); gap: 18px; }
+.panel .radar { max-width: 340px; margin: 0 auto; }
 .panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 20px 20px; box-shadow: var(--shadow); min-width: 0; }
 .panel h3 { font-size: 19px; margin-bottom: 4px; }
 .panel .sub { color: var(--muted); font-size: 13px; margin-bottom: 14px; }
 
 .bars { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
-.bars li { display: grid; grid-template-columns: minmax(80px, 34%) 1fr auto; gap: 10px; align-items: center; font-size: 14px; }
+.bars li { display: grid; grid-template-columns: minmax(90px, 42%) 1fr auto; gap: 10px; align-items: center; font-size: 14px; }
 .bl { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bt { height: 12px; background: var(--surface-2); border-radius: 999px; overflow: hidden; }
 .bf { display: block; height: 100%; background: linear-gradient(90deg, var(--primary), color-mix(in srgb, var(--primary) 60%, var(--accent))); border-radius: 999px; }
 .bv { font-weight: 800; font-variant-numeric: tabular-nums; font-size: 13px; text-align: right; min-width: 56px; }
 
-.hist { display: flex; align-items: flex-end; gap: 6px; height: 170px; padding-top: 18px; }
-.hist .col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; gap: 4px; min-width: 0; }
-.hist .bar { width: 100%; background: var(--primary); border-radius: 6px 6px 2px 2px; min-height: 3px; opacity: .9; }
-.hist .col.empty .bar { background: var(--line); }
-.hist .n { font-size: 12px; font-weight: 800; }
-.hist .x { font-size: 11px; color: var(--muted); font-weight: 600; }
+.hist { display: flex; gap: 6px; height: 300px; }
+.hist .col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; height: 100%; }
+.hist .track { flex: 1; width: 100%; max-width: 44px; display: flex; align-items: flex-end; min-height: 0; }
+.hist .bar { display: block; width: 100%; background: var(--primary); border-radius: 6px 6px 2px 2px; min-height: 3px; opacity: .9; }
+.hist .col.vacia .bar { background: var(--line); }
+.hist .n { font-size: 12px; font-weight: 800; line-height: 1; min-height: 12px; }
+.hist .x { font-size: 11px; color: var(--muted); font-weight: 600; line-height: 1; white-space: nowrap; }
 
 .rank { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .rank li { display: grid; grid-template-columns: 28px 44px 1fr auto; gap: 12px; align-items: center; padding: 8px 10px; border-radius: 12px; cursor: pointer; }

@@ -816,7 +816,11 @@ function renderStats() {
       </section>
 
       <section class="panel"><h3>Distribución de puntajes</h3><p class="sub">Cuántas yerbas recibieron cada nota</p>
-        ${rated.length ? `<div class="hist">${cubos.map(c => `<div class="col ${c.n ? '' : 'empty'}"><span class="n">${c.n || ''}</span><span class="bar" style="height:${(c.n / maxN) * 100}%"></span><span class="x">${fmtRate(c.v).replace(',0', '')}</span></div>`).join('')}</div>` : '<p class="muted small">Puntuá alguna yerba para ver esto.</p>'}
+        ${rated.length ? `<div class="hist">${cubos.map(c => `<div class="col ${c.n ? '' : 'vacia'}"><span class="n">${c.n || ''}</span><span class="track"><span class="bar" style="height:${(c.n / maxN) * 100}%"></span></span><span class="x">${fmtRate(c.v).replace(',0', '')}</span></div>`).join('')}</div>` : '<p class="muted small">Puntuá alguna yerba para ver esto.</p>'}
+      </section>
+
+      <section class="panel"><h3>Yerbas probadas por mes</h3><p class="sub">Últimos 12 meses</p>
+        <div class="hist">${meses.map(m => `<div class="col ${m.n ? '' : 'vacia'}"><span class="n">${m.n || ''}</span><span class="track"><span class="bar" style="height:${(m.n / maxM) * 100}%"></span></span><span class="x">${m.label}</span></div>`).join('')}</div>
       </section>
 
       <section class="panel"><h3>Promedio por tipo</h3><p class="sub">Qué tipo de yerba te gusta más</p>
@@ -825,10 +829,6 @@ function renderStats() {
 
       <section class="panel"><h3>Promedio por marca</h3><p class="sub">Top 8 (el número es cuántas probaste)</p>
         ${barList(porMarca.map(g => ({ label: g.label, value: g.prom, n: g.n })), 5, i => `${fmtRate(i.value)} ★ · ${i.n}`)}
-      </section>
-
-      <section class="panel"><h3>Yerbas probadas por mes</h3><p class="sub">Últimos 12 meses</p>
-        <div class="hist">${meses.map(m => `<div class="col ${m.n ? '' : 'empty'}"><span class="n">${m.n || ''}</span><span class="bar" style="height:${(m.n / maxM) * 100}%"></span><span class="x">${m.label}</span></div>`).join('')}</div>
       </section>
     </div>`;
 }
