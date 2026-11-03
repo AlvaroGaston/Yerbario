@@ -14,9 +14,11 @@ export default async function handler(req, res) {
       throw new HttpError(400, 'La contraseña debe tener entre 8 y 256 caracteres.');
     }
 
-    const inviteCode = process.env.INVITE_CODE;
+    // Se ignoran espacios, saltos de línea y comillas en los bordes: suelen colarse al pegar el valor en Vercel.
+    const limpiar = value => typeof value === 'string' ? value.trim().replace(/^(['"])(.*)\1$/s, '$2').trim() : value;
+    const inviteCode = limpiar(process.env.INVITE_CODE);
     const inviteRequired = Boolean(inviteCode);
-    const inviteValid = inviteRequired && compareSecret(body.codigo, inviteCode);
+    const inviteValid = inviteRequired && compareSecret(limpiar(body.codigo), inviteCode);
     const passwordHash = await hashPassword(body.password);
     await ensureSchema();
     const sql = db();
