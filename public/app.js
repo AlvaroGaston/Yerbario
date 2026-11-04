@@ -77,7 +77,7 @@ async function api(path, options = {}) {
     state.dirty = false;
     state.cuenta = null;
     $('#aviso-cuenta').hidden = true;
-    ['#dlg-detail', '#dlg-compare', '#dlg-form', '#dlg-email'].forEach(selector => {
+    ['#dlg-detail', '#dlg-compare', '#dlg-form', '#dlg-email', '#dlg-post', '#dlg-perfil', '#dlg-lista'].forEach(selector => {
       const dialog = $(selector);
       if (dialog.open) dialog.close();
     });
@@ -329,6 +329,7 @@ async function cargarCuenta() {
     aviso.innerHTML = '';
   }
   aviso.hidden = !aviso.innerHTML;
+  window.alCargarCuenta?.(); // social.js: avatar, notificaciones y navegación
 }
 
 // Enlaces de los correos: /?verificar=TOKEN y /?restablecer=TOKEN.
@@ -603,11 +604,12 @@ function setVista(v) {
   renderGrid();
 }
 
+// Muestra una sección (inicio, coleccion, stats, buscar, perfil, notifs). La navegación
+// la maneja el router de social.js con el hash de la URL (#/inicio, #/u/usuario…).
 function cambiarVista(v) {
   state.view = v;
   $$('.tab').forEach(t => { const on = t.dataset.view === v; t.classList.toggle('is-active', on); t.setAttribute('aria-selected', on); });
-  $('#view-coleccion').hidden = v !== 'coleccion';
-  $('#view-stats').hidden = v !== 'stats';
+  $$('main > section').forEach(s => { s.hidden = s.id !== `view-${v}`; });
   if (v === 'stats') renderStats();
   renderCompareBar();
   window.scrollTo({ top: 0 });
@@ -706,6 +708,10 @@ function detalleHTML(y, urls) {
         })() : ''}
         ${!quiero && y.mates?.length ? `<div class="detail-block"><h4>Mates en los que la tomé</h4>${matesHTML(y.mates)}</div>` : ''}
         ${y.notas ? `<div class="notes"><h4>Notas</h4><p>${esc(y.notas)}</p></div>` : ''}
+        ${!quiero && y.likes != null ? `<div class="detail-social">
+          <span>♥ ${y.likes} me gusta</span><span>💬 ${y.comentarios} comentario${y.comentarios === 1 ? '' : 's'}</span>
+          <button type="button" class="link-btn" data-act="d-post">Ver publicación</button>
+        </div>` : ''}
         <div class="detail-actions">
           <button type="button" id="detail-fav" class="btn ghost" aria-pressed="${!!y.favorita}" data-act="d-fav">${y.favorita ? '♥ Favorita' : '♡ Marcar favorita'}</button>
           <button type="button" class="btn primary" data-act="d-edit">✎ Editar</button>
@@ -1361,7 +1367,7 @@ async function cerrarSesion() {
 /* ---------- Eventos ---------- */
 function bindEventos() {
   // Pestañas
-  $$('.tab').forEach(t => t.addEventListener('click', () => cambiarVista(t.dataset.view)));
+  $$('.tab').forEach(t => t.addEventListener('click', () => { location.hash = `#/${t.dataset.view}`; }));
 
   // Tema
   $('#btn-theme').addEventListener('click', () => {
@@ -1451,7 +1457,7 @@ function bindEventos() {
       if (d.id === 'dlg-form') cerrarForm(); else d.close();
       return;
     }
-    if (e.target instanceof HTMLDialogElement && ['dlg-detail', 'dlg-compare'].includes(e.target.id)) e.target.close();
+    if (e.target instanceof HTMLDialogElement && ['dlg-detail', 'dlg-compare', 'dlg-post', 'dlg-lista'].includes(e.target.id)) e.target.close();
   });
   $('#dlg-form').addEventListener('cancel', e => { if (state.dirty) { e.preventDefault(); cerrarForm(); } });
   $('#dlg-form').addEventListener('close', () => { state.formFotos = []; });
@@ -1475,6 +1481,7 @@ function bindEventos() {
     if (b.dataset.act === 'd-fav') toggleFav(id);
     if (b.dataset.act === 'd-edit') { $('#dlg-detail').close(); abrirForm(id); }
     if (b.dataset.act === 'd-del') eliminar(id);
+    if (b.dataset.act === 'd-post') { $('#dlg-detail').close(); window.abrirPost?.(id); }
   });
 
   // Estadísticas: abrir detalle desde rankings
@@ -1534,8 +1541,8 @@ function bindEventos() {
   document.addEventListener('keydown', e => {
     if (e.key === '/' && !e.target.closest('input, textarea, select') && !document.querySelector('dialog[open]')) {
       e.preventDefault();
-      cambiarVista('coleccion');
-      $('#f-q').focus();
+      location.hash = '#/coleccion';
+      setTimeout(() => $('#f-q').focus(), 0);
     }
   });
 

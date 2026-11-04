@@ -26,7 +26,11 @@ export default async function handler(req, res) {
         if (!row) throw new HttpError(404, 'No se encontró esa yerba.');
         return json(res, 200, serializeYerba(row));
       }
-      const rows = await sql`SELECT * FROM yerbas WHERE user_id = ${session.id} ORDER BY fecha DESC NULLS LAST, creado DESC`;
+      const rows = await sql`SELECT y.*,
+        (SELECT count(*) FROM likes l WHERE l.yerba_id = y.id) AS n_likes,
+        EXISTS (SELECT 1 FROM likes l WHERE l.yerba_id = y.id AND l.user_id = ${session.id}) AS me_gusta,
+        (SELECT count(*) FROM comentarios c WHERE c.yerba_id = y.id) AS n_comentarios
+        FROM yerbas y WHERE y.user_id = ${session.id} ORDER BY y.fecha DESC NULLS LAST, y.creado DESC`;
       return json(res, 200, rows.map(serializeYerba));
     }
     if (req.method === 'DELETE') {

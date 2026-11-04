@@ -31,11 +31,15 @@
   </div>
 
   <nav class="tabs" role="tablist" aria-label="Secciones">
-    <button class="tab is-active" role="tab" aria-selected="true" data-view="coleccion">Colección</button>
+    <button class="tab is-active" role="tab" aria-selected="true" data-view="inicio">Inicio</button>
+    <button class="tab" role="tab" aria-selected="false" data-view="coleccion">Mi colección</button>
     <button class="tab" role="tab" aria-selected="false" data-view="stats">Estadísticas</button>
+    <button class="tab" role="tab" aria-selected="false" data-view="buscar">Buscar</button>
   </nav>
 
   <div class="top-actions">
+    <a id="btn-notifs" class="icon-btn notif-btn" href="#/notificaciones" title="Notificaciones" aria-label="Notificaciones">🔔<span id="notif-badge" class="badge-count" hidden></span></a>
+    <a id="btn-perfil" class="perfil-btn" href="#/u/" title="Mi perfil" aria-label="Mi perfil"></a>
     <button id="btn-theme" class="icon-btn" title="Cambiar entre tema claro y oscuro" aria-label="Cambiar tema">◐</button>
     <div class="menu">
       <button id="btn-data" class="btn ghost" aria-haspopup="true" aria-expanded="false">Datos ▾</button>
@@ -52,7 +56,7 @@
         <p class="menu-note">Tus yerbas se guardan de forma segura en la nube. Hacé un respaldo de vez en cuando.</p>
       </div>
     </div>
-    <button id="btn-new" class="btn primary">+ Nueva yerba</button>
+    <button id="btn-new" class="btn primary" aria-label="Nueva yerba">+<span class="hide-sm"> Nueva yerba</span></button>
   </div>
 </header>
 
@@ -60,7 +64,43 @@
   <!-- ====== COLECCIÓN ====== -->
   <div id="aviso-cuenta" class="aviso" role="status" hidden></div>
 
-  <section id="view-coleccion" aria-label="Colección de yerbas">
+  <!-- ====== INICIO (feed) ====== -->
+  <section id="view-inicio" aria-label="Inicio" hidden>
+    <div class="feed-wrap">
+      <div class="seg feed-seg" role="tablist" aria-label="Qué publicaciones ver">
+        <label><input type="radio" name="feed-modo" value="feed" checked><span>Siguiendo</span></label>
+        <label><input type="radio" name="feed-modo" value="explorar"><span>Descubrir</span></label>
+      </div>
+      <div id="feed" class="feed"></div>
+      <button id="feed-mas" class="btn ghost block" hidden>Ver más</button>
+    </div>
+  </section>
+
+  <!-- ====== BUSCAR ====== -->
+  <section id="view-buscar" aria-label="Buscar usuarios" hidden>
+    <div class="feed-wrap">
+      <label class="search search-users">
+        <span class="sr-only">Buscar usuarios</span>
+        <input id="buscar-q" type="search" placeholder="Buscar personas por usuario o nombre…" autocomplete="off" autocapitalize="none" spellcheck="false">
+      </label>
+      <div id="buscar-res" class="user-list"></div>
+    </div>
+  </section>
+
+  <!-- ====== PERFIL ====== -->
+  <section id="view-perfil" aria-label="Perfil" hidden>
+    <div id="perfil-body" class="perfil"></div>
+  </section>
+
+  <!-- ====== NOTIFICACIONES ====== -->
+  <section id="view-notifs" aria-label="Notificaciones" hidden>
+    <div class="feed-wrap">
+      <h2 class="section-title">Notificaciones</h2>
+      <div id="notifs-list" class="notif-list"></div>
+    </div>
+  </section>
+
+  <section id="view-coleccion" aria-label="Colección de yerbas" hidden>
     <div id="summary" class="summary"></div>
 
     <div class="toolbar">
@@ -223,6 +263,58 @@
   <div id="detail-body"></div>
 </dialog>
 
+<!-- ====== PUBLICACIÓN (yerba vista desde la red: me gusta y comentarios) ====== -->
+<dialog id="dlg-post" class="dlg dlg-wide" aria-label="Publicación">
+  <div id="post-body"></div>
+</dialog>
+
+<!-- ====== EDITAR PERFIL ====== -->
+<dialog id="dlg-perfil" class="dlg dlg-auth" aria-labelledby="perfil-title">
+  <form id="form-perfil" novalidate>
+    <h2 id="perfil-title" class="auth-title">Editar perfil</h2>
+    <div id="perfil-msg" class="auth-msg" role="alert" hidden></div>
+    <div class="avatar-edit">
+      <span id="perfil-avatar-prev"></span>
+      <div class="avatar-edit-btns">
+        <button type="button" class="btn ghost sm" id="perfil-avatar-btn">Cambiar foto</button>
+        <button type="button" class="link-btn" id="perfil-avatar-quitar">Quitar foto</button>
+      </div>
+      <input type="file" id="perfil-avatar-file" accept="image/*" hidden>
+    </div>
+    <div class="auth-view">
+      <label class="f">Nombre para mostrar
+        <input name="nombre" maxlength="50" placeholder="Ej: Álvaro">
+      </label>
+      <label class="f">Biografía
+        <textarea name="bio" rows="3" maxlength="300" placeholder="Contá qué yerbas te gustan, cómo tomás mate…"></textarea>
+      </label>
+      <fieldset class="perfil-opts">
+        <legend>Privacidad</legend>
+        <label class="check"><input type="checkbox" name="privado"> <span>🔒 Cuenta privada <small class="field-hint">Solo te ven quienes aceptes como seguidores.</small></span></label>
+      </fieldset>
+      <fieldset class="perfil-opts">
+        <legend>Qué mostrar en mi perfil</legend>
+        <label class="check"><input type="checkbox" name="cfg-estadisticas"> <span>Mis estadísticas</span></label>
+        <label class="check"><input type="checkbox" name="cfg-quiero"> <span>Mi lista "Quiero probar"</span></label>
+        <label class="check"><input type="checkbox" name="cfg-seguidores"> <span>Quiénes me siguen y a quiénes sigo</span></label>
+      </fieldset>
+    </div>
+    <div class="auth-actions">
+      <button type="button" class="btn ghost" data-close>Cancelar</button>
+      <button type="submit" class="btn primary">Guardar</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- ====== LISTA DE USUARIOS (seguidores / seguidos) ====== -->
+<dialog id="dlg-lista" class="dlg dlg-auth" aria-labelledby="lista-title">
+  <header class="lista-head">
+    <h2 id="lista-title" class="auth-title">Seguidores</h2>
+    <button type="button" class="icon-btn" data-close aria-label="Cerrar">✕</button>
+  </header>
+  <div id="lista-body" class="user-list"></div>
+</dialog>
+
 <!-- ====== COMPARAR ====== -->
 <dialog id="dlg-compare" class="dlg dlg-wide" aria-label="Comparación de yerbas">
   <div id="compare-body"></div>
@@ -332,5 +424,6 @@
 <input type="file" id="file-import" accept="application/json,.json" hidden>
 
 <script src="app.js"></script>
+<script src="social.js"></script>
 </body>
 </html>

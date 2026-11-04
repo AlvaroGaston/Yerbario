@@ -66,6 +66,15 @@ No abras `public/index.html` directamente como archivo: la app requiere sus ruta
 - Las sesiones usan cookies `HttpOnly`, `Secure`, `SameSite=Lax` con vencimiento de 30 días.
 - Las funciones registradas se resuelven antes de la reescritura de fallback; cualquier otra ruta bajo `/api` devuelve un 404 JSON.
 
+## Red social
+
+- **Inicio**: "Siguiendo" muestra las yerbas probadas de la gente que seguís (y las tuyas); "Descubrir", las de todas las cuentas públicas.
+- **Perfil** (`#/u/usuario`): foto, nombre, biografía, contadores y pestañas Yerbas / Quiero probar / Estadísticas. Desde "Editar perfil" se elige qué mostrar y si la cuenta es privada.
+- **Cuentas privadas**: seguirlas envía una solicitud; hasta que se acepta no se ven sus yerbas, comentarios ni estadísticas. Al pasar a pública, las solicitudes pendientes se aceptan solas.
+- **Interacción**: me gusta, comentarios (el autor o el dueño de la yerba pueden borrarlos), notificaciones con contador y "Guardar en mi lista", que copia la yerba de otro a tu "Quiero probar" (sin sus fotos).
+- **Buscar**: por usuario o nombre. Las cuentas sin confirmar el correo no aparecen.
+- Todo pasa por `api/social.js` (una sola función por el límite de 12 funciones del plan gratuito de Vercel), y cada consulta revisa si quien mira tiene permiso.
+
 ## Datos y respaldos
 
 - **Datos → Exportar respaldo** descarga un JSON; las fotos se incluyen como URLs públicas de Blob.
