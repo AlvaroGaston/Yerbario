@@ -75,7 +75,9 @@ async function api(path, options = {}) {
     state.editingId = null;
     state.formFotos = [];
     state.dirty = false;
-    ['#dlg-detail', '#dlg-compare', '#dlg-form'].forEach(selector => {
+    state.cuenta = null;
+    $('#aviso-cuenta').hidden = true;
+    ['#dlg-detail', '#dlg-compare', '#dlg-form', '#dlg-email'].forEach(selector => {
       const dialog = $(selector);
       if (dialog.open) dialog.close();
     });
@@ -100,18 +102,259 @@ async function api(path, options = {}) {
     const message = data && typeof data.error === 'string' ? data.error : 'No se pudo completar la operación.';
     const error = new Error(`${message} (HTTP ${response.status})`);
     error.status = response.status;
+    error.mensaje = message; // sin el código HTTP, para mostrar en las pantallas de acceso
+    error.code = data?.code;
+    error.email = data?.email;
     throw error;
   }
   return data;
 }
 
-function mostrarLogin() {
-  const dialog = $('#dlg-login');
-  if (!dialog.open) {
-    $('#form-login').hidden = false;
-    $('#form-register').hidden = true;
-    dialog.showModal();
+/* ---------- Acceso: ingresar, crear cuenta, confirmar correo, recuperar contraseña ---------- */
+const VISTAS_ACCESO = {
+  login: ['Iniciá sesión', 'Entrá con tu usuario o tu correo.'],
+  registro: ['Creá tu cuenta', 'Vas a recibir un correo para confirmarla.'],
+  pendiente: ['Revisá tu correo', ''],
+  olvide: ['Recuperá tu contraseña', 'Te mandamos un enlace a tu correo para elegir una nueva.'],
+  restablecer: ['Elegí una contraseña nueva', 'Después vas a entrar directo a tu diario.'],
+};
+const acceso = { emailPendiente: '', tokenRestablecer: '' };
+
+function mensajeAcceso(texto, tipo = 'error', boton = null) {
+  const box = $('#auth-msg');
+  box.className = `auth-msg ${tipo}`;
+  box.textContent = texto;
+  if (boton) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'link-btn';
+    b.textContent = boton.texto;
+    b.addEventListener('click', boton.accion);
+    box.append(' ', b);
   }
+  box.hidden = !texto;
+}
+
+function irAVista(vista, { conservarMensaje = false } = {}) {
+  const [titulo, sub] = VISTAS_ACCESO[vista];
+  $('#auth-title').textContent = titulo;
+  $('#auth-sub').textContent = sub;
+  $('#auth-sub').hidden = !sub;
+  $$('#dlg-login .auth-view').forEach(v => { v.hidden = v.dataset.vista !== vista; });
+  if (vista === 'pendiente') $('#auth-email-pendiente').textContent = acceso.emailPendiente;
+  if (!conservarMensaje) mensajeAcceso('');
+  $(`#dlg-login .auth-view[data-vista="${vista}"] input`)?.focus();
+}
+
+function mostrarLogin(vista = 'login') {
+  const dialog = $('#dlg-login');
+  irAVista(vista);
+  if (!dialog.open) dialog.showModal();
+}
+
+// Ejecuta un envío de formulario de acceso con el botón deshabilitado y el error visible.
+async function enviarAcceso(form, accion) {
+  const boton = $('button[type="submit"], [data-act="reenviar"]', form);
+  const texto = boton.textContent;
+  boton.disabled = true;
+  boton.textContent = 'Un momento…';
+  mensajeAcceso('');
+  try {
+    await accion();
+  } catch (error) {
+    mensajeAcceso(error.mensaje || error.message);
+  } finally {
+    boton.disabled = false;
+    boton.textContent = texto;
+  }
+}
+
+async function entrarALaApp(mensaje) {
+  $$('#dlg-login form').forEach(f => f.reset());
+  $('#dlg-login').close();
+  await cargarCuenta();
+  await recargar();
+  if (mensaje) toast(mensaje);
+}
+
+async function reenviarVerificacion(identificador) {
+  const r = await api('/api/cuenta?accion=reenviar', { method: 'POST', body: { identificador } });
+  return r.mensaje;
+}
+
+function bindAcceso() {
+  const dlg = $('#dlg-login');
+  dlg.addEventListener('cancel', e => e.preventDefault());
+  dlg.addEventListener('click', e => {
+    const ir = e.target.closest('[data-ir]');
+    if (ir) { irAVista(ir.dataset.ir); return; }
+    const ver = e.target.closest('.pass-toggle');
+    if (ver) {
+      const input = ver.previousElementSibling;
+      const mostrar = input.type === 'password';
+      input.type = mostrar ? 'text' : 'password';
+      ver.textContent = mostrar ? 'Ocultar' : 'Ver';
+      ver.setAttribute('aria-pressed', String(mostrar));
+      ver.setAttribute('aria-label', mostrar ? 'Ocultar contraseña' : 'Mostrar contraseña');
+    }
+  });
+
+  const vista = v => $(`#dlg-login .auth-view[data-vista="${v}"]`);
+
+  vista('login').addEventListener('submit', e => {
+    e.preventDefault();
+    const f = e.currentTarget;
+    const identificador = f.identificador.value.trim();
+    const password = f.password.value;
+    if (!identificador || !password) { mensajeAcceso('Completá tu usuario o correo y la contraseña.'); return; }
+    enviarAcceso(f, async () => {
+      try {
+        await api('/api/login', { method: 'POST', body: { identificador, password } });
+        await entrarALaApp();
+      } catch (error) {
+        if (error.code !== 'email_no_verificado') throw error;
+        acceso.emailPendiente = error.email || identificador;
+        mensajeAcceso(error.mensaje, 'info', {
+          texto: 'Reenviar el correo',
+          accion: async () => {
+            try { mensajeAcceso(await reenviarVerificacion(identificador), 'ok'); }
+            catch (err) { mensajeAcceso(err.mensaje || err.message); }
+          },
+        });
+      }
+    });
+  });
+
+  vista('registro').addEventListener('submit', e => {
+    e.preventDefault();
+    const f = e.currentTarget;
+    const body = { email: f.email.value.trim(), usuario: f.usuario.value.trim(), password: f.password.value, password2: f.password2.value };
+    if (!body.email || !body.usuario || !body.password || !body.password2) { mensajeAcceso('Completá todos los campos.'); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(body.email)) { mensajeAcceso('Revisá el correo: no parece válido.'); f.email.focus(); return; }
+    if (body.password.length < 8) { mensajeAcceso('La contraseña tiene que tener al menos 8 caracteres.'); f.password.focus(); return; }
+    if (body.password !== body.password2) { mensajeAcceso('Las contraseñas no coinciden.'); f.password2.focus(); return; }
+    enviarAcceso(f, async () => {
+      const r = await api('/api/register', { method: 'POST', body });
+      acceso.emailPendiente = r.email;
+      f.reset();
+      irAVista('pendiente');
+    });
+  });
+
+  vista('pendiente').addEventListener('click', e => {
+    if (!e.target.closest('[data-act="reenviar"]')) return;
+    enviarAcceso(vista('pendiente'), async () => {
+      mensajeAcceso(await reenviarVerificacion(acceso.emailPendiente), 'ok');
+    });
+  });
+
+  vista('olvide').addEventListener('submit', e => {
+    e.preventDefault();
+    const f = e.currentTarget;
+    const email = f.email.value.trim();
+    if (!email) { mensajeAcceso('Escribí el correo de tu cuenta.'); return; }
+    enviarAcceso(f, async () => {
+      const r = await api('/api/cuenta?accion=recuperar', { method: 'POST', body: { email } });
+      f.reset();
+      irAVista('login');
+      mensajeAcceso(r.mensaje, 'ok');
+    });
+  });
+
+  vista('restablecer').addEventListener('submit', e => {
+    e.preventDefault();
+    const f = e.currentTarget;
+    const body = { token: acceso.tokenRestablecer, password: f.password.value, password2: f.password2.value };
+    if (body.password.length < 8) { mensajeAcceso('La contraseña tiene que tener al menos 8 caracteres.'); return; }
+    if (body.password !== body.password2) { mensajeAcceso('Las contraseñas no coinciden.'); return; }
+    enviarAcceso(f, async () => {
+      await api('/api/cuenta?accion=restablecer', { method: 'POST', body });
+      acceso.tokenRestablecer = '';
+      await entrarALaApp('Contraseña actualizada ✔');
+    });
+  });
+
+  // Agregar o cambiar el correo de la cuenta (para cuentas creadas antes de pedir correo).
+  $('#form-email').addEventListener('submit', async e => {
+    e.preventDefault();
+    const f = e.currentTarget;
+    const msg = $('#email-msg');
+    const boton = $('button[type="submit"]', f);
+    boton.disabled = true;
+    msg.hidden = true;
+    try {
+      await api('/api/cuenta?accion=email', { method: 'POST', body: { email: f.email.value.trim() } });
+      $('#dlg-email').close();
+      await cargarCuenta();
+      toast('Te mandamos un correo para confirmarlo ✉️');
+    } catch (error) {
+      msg.className = 'auth-msg error';
+      msg.textContent = error.mensaje || error.message;
+      msg.hidden = false;
+    } finally {
+      boton.disabled = false;
+    }
+  });
+  $('#aviso-cuenta').addEventListener('click', e => {
+    const b = e.target.closest('[data-act]');
+    if (!b) return;
+    if (b.dataset.act === 'agregar-email') abrirDialogoEmail();
+    if (b.dataset.act === 'reenviar-email') {
+      reenviarVerificacion(state.cuenta.email)
+        .then(m => toast(m))
+        .catch(err => toast(err.mensaje || err.message, { error: true }));
+    }
+  });
+}
+
+function abrirDialogoEmail() {
+  const f = $('#form-email');
+  f.reset();
+  f.email.value = state.cuenta?.email || '';
+  $('#email-msg').hidden = true;
+  $('#dlg-email').showModal();
+  f.email.focus();
+}
+
+// Datos de la cuenta y aviso si falta el correo o no está confirmado.
+async function cargarCuenta() {
+  state.cuenta = await api('/api/session');
+  const aviso = $('#aviso-cuenta');
+  const c = state.cuenta;
+  if (!c.email) {
+    aviso.innerHTML = '<span>✉️ Tu cuenta no tiene correo. Agregalo para poder recuperar la contraseña si te la olvidás.</span><button type="button" class="btn primary sm" data-act="agregar-email">Agregar correo</button>';
+  } else if (!c.email_verificado) {
+    aviso.innerHTML = `<span>✉️ Confirmá tu correo <b>${esc(c.email)}</b> con el enlace que te enviamos.</span><button type="button" class="btn ghost sm" data-act="reenviar-email">Reenviar</button><button type="button" class="btn ghost sm" data-act="agregar-email">Cambiar</button>`;
+  } else {
+    aviso.innerHTML = '';
+  }
+  aviso.hidden = !aviso.innerHTML;
+}
+
+// Enlaces de los correos: /?verificar=TOKEN y /?restablecer=TOKEN.
+// Se procesan desde la página (no con un GET directo a la API) para que los
+// antivirus de correo que abren los enlaces solos no gasten el token.
+async function procesarEnlaceDeCorreo() {
+  const params = new URLSearchParams(location.search);
+  const verificar = params.get('verificar');
+  const restablecer = params.get('restablecer');
+  if (!verificar && !restablecer) return false;
+  history.replaceState(null, '', location.pathname);
+  if (restablecer) {
+    acceso.tokenRestablecer = restablecer;
+    mostrarLogin('restablecer');
+    return true;
+  }
+  try {
+    await api('/api/cuenta?accion=verificar', { method: 'POST', body: { token: verificar } });
+    await cargarCuenta();
+    await recargar();
+    toast('¡Correo confirmado! Bienvenido a Yerbario 🧉');
+  } catch (error) {
+    mostrarLogin('login');
+    mensajeAcceso(error.mensaje || error.message);
+  }
+  return true;
 }
 
 async function subirFoto(blob, contentType = blob.type || 'image/jpeg') {
@@ -1104,7 +1347,9 @@ async function cerrarSesion() {
   try {
     await api('/api/logout', { method: 'POST' });
     state.yerbas = [];
+    state.cuenta = null;
     state.compare.clear();
+    $('#aviso-cuenta').hidden = true;
     renderAll();
     mostrarLogin();
     toast('Sesión cerrada');
@@ -1143,6 +1388,7 @@ function bindEventos() {
       import: () => $('#file-import').click(),
       migrate: migrarDatosLocales,
       logout: cerrarSesion,
+      email: abrirDialogoEmail,
       seed: cargarEjemplos,
       wipe: borrarTodo,
     })[b.dataset.act];
@@ -1293,62 +1539,7 @@ function bindEventos() {
     }
   });
 
-  const cambiarModoAcceso = register => {
-    $('#form-login').hidden = register;
-    $('#form-register').hidden = !register;
-    $('#dlg-login').setAttribute('aria-labelledby', register ? 'register-title' : 'login-title');
-    $('#login-error').hidden = true;
-    $('#register-error').hidden = true;
-    $(`${register ? '#register-usuario' : '#login-usuario'}`).focus();
-  };
-  $('#show-register').addEventListener('click', () => cambiarModoAcceso(true));
-  $('#show-login').addEventListener('click', () => cambiarModoAcceso(false));
-
-  $('#form-login').addEventListener('submit', async e => {
-    e.preventDefault();
-    const button = $('#login-submit');
-    const usuario = $('#login-usuario').value;
-    const password = $('#login-password').value;
-    const error = $('#login-error');
-    button.disabled = true;
-    error.hidden = true;
-    try {
-      await api('/api/login', { method: 'POST', body: { usuario, password } });
-      $('#form-login').reset();
-      $('#dlg-login').close();
-      await recargar();
-    } catch (reason) {
-      error.textContent = reason.message;
-      error.hidden = false;
-    } finally {
-      button.disabled = false;
-    }
-  });
-  $('#form-register').addEventListener('submit', async e => {
-    e.preventDefault();
-    const button = $('#register-submit');
-    const error = $('#register-error');
-    const body = {
-      usuario: $('#register-usuario').value,
-      password: $('#register-password').value,
-      codigo: $('#register-codigo').value,
-    };
-    button.disabled = true;
-    error.hidden = true;
-    try {
-      await api('/api/register', { method: 'POST', body });
-      $('#form-register').reset();
-      $('#dlg-login').close();
-      await recargar();
-      toast('Cuenta creada ✔');
-    } catch (reason) {
-      error.textContent = reason.message;
-      error.hidden = false;
-    } finally {
-      button.disabled = false;
-    }
-  });
-  $('#dlg-login').addEventListener('cancel', e => e.preventDefault());
+  bindAcceso();
 }
 
 /* ---------- Inicio ---------- */
@@ -1359,7 +1550,8 @@ async function init() {
   $('#empty').hidden = true;
   $('#grid').innerHTML = '<p class="loading" role="status">Conectando con Yerbario…</p>';
   try {
-    await api('/api/session');
+    if (await procesarEnlaceDeCorreo()) return;
+    await cargarCuenta();
     await recargar();
   } catch (error) {
     if (!$('#dlg-login').open) {

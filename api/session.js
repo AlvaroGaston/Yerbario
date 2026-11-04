@@ -9,9 +9,9 @@ export default async function handler(req, res) {
   try {
     await ensureSchema();
     const sql = db();
-    const [user] = await sql`SELECT usuario FROM usuarios WHERE id = ${session.id}`;
+    const [user] = await sql`SELECT usuario, email, email_verificado FROM usuarios WHERE id = ${session.id}`;
     if (!user) return json(res, 401, { error: 'La sesión ya no es válida. Iniciá sesión de nuevo.' });
-    return json(res, 200, { authenticated: true, usuario: user.usuario });
+    return json(res, 200, { authenticated: true, usuario: user.usuario, email: user.email, email_verificado: user.email_verificado });
   } catch (err) {
     return fail(res, err, 'api/session');
   }

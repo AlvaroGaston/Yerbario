@@ -47,6 +47,7 @@
         <hr>
         <button data-act="seed">✨ Cargar datos de ejemplo</button>
         <button data-act="wipe" class="danger-text">🗑 Borrar todo</button>
+        <button data-act="email">✉ Correo de la cuenta</button>
         <button data-act="logout">Cerrar sesión</button>
         <p class="menu-note">Tus yerbas se guardan de forma segura en la nube. Hacé un respaldo de vez en cuando.</p>
       </div>
@@ -57,6 +58,8 @@
 
 <main>
   <!-- ====== COLECCIÓN ====== -->
+  <div id="aviso-cuenta" class="aviso" role="status" hidden></div>
+
   <section id="view-coleccion" aria-label="Colección de yerbas">
     <div id="summary" class="summary"></div>
 
@@ -239,43 +242,89 @@
   </form>
 </dialog>
 
-<dialog id="dlg-login" class="dlg dlg-small" aria-labelledby="login-title">
-  <form id="form-login" autocomplete="off">
-    <div class="dlg-body">
-      <h2 id="login-title">Ingresar a Yerbario</h2>
-      <p>Ingresá a tu cuenta para acceder a tu diario.</p>
-      <label class="f" for="login-usuario">Usuario
-        <input id="login-usuario" name="usuario" type="text" required minlength="3" maxlength="32" autocomplete="username">
-      </label>
-      <label class="f" for="login-password">Contraseña
-        <input id="login-password" name="password" type="password" required autocomplete="current-password">
-      </label>
-      <p id="login-error" class="login-error" role="alert" hidden></p>
-    </div>
-    <footer class="dlg-foot">
-      <button type="submit" id="login-submit" class="btn primary">Ingresar</button>
-      <button type="button" id="show-register" class="btn ghost">Crear una cuenta nueva</button>
-    </footer>
+<!-- ====== ACCESO (ingresar, crear cuenta, recuperar contraseña) ====== -->
+<dialog id="dlg-login" class="dlg dlg-auth" aria-labelledby="auth-title">
+  <div class="auth-brand">
+    <span class="brand-mark" aria-hidden="true">🧉</span>
+    <div><b>Yerbario</b><small>Tu diario de yerba mate</small></div>
+  </div>
+  <h2 id="auth-title" class="auth-title">Iniciá sesión</h2>
+  <p id="auth-sub" class="auth-sub">Entrá con tu usuario o tu correo.</p>
+  <div id="auth-msg" class="auth-msg" role="alert" hidden></div>
+
+  <form class="auth-view" data-vista="login" novalidate>
+    <label class="f">Usuario o correo
+      <input name="identificador" type="text" required maxlength="254" autocomplete="username" autocapitalize="none" spellcheck="false">
+    </label>
+    <label class="f">Contraseña
+      <span class="pass-wrap"><input name="password" type="password" required maxlength="256" autocomplete="current-password"><button type="button" class="pass-toggle" aria-label="Mostrar contraseña" aria-pressed="false">Ver</button></span>
+    </label>
+    <div class="auth-row"><button type="button" class="link-btn" data-ir="olvide">¿Olvidaste tu contraseña?</button></div>
+    <button type="submit" class="btn primary block">Ingresar</button>
+    <p class="auth-alt">¿No tenés cuenta? <button type="button" class="link-btn" data-ir="registro">Creá una</button></p>
   </form>
-  <form id="form-register" autocomplete="off" hidden>
-    <div class="dlg-body">
-      <h2 id="register-title">Crear una cuenta</h2>
-      <p>Elegí un usuario y una contraseña para tu diario.</p>
-      <label class="f" for="register-usuario">Usuario
-        <input id="register-usuario" name="usuario" type="text" required minlength="3" maxlength="32" autocomplete="username">
-      </label>
-      <label class="f" for="register-password">Contraseña (mínimo 8 caracteres)
-        <input id="register-password" name="password" type="password" required minlength="8" maxlength="256" autocomplete="new-password">
-      </label>
-      <label class="f" for="register-codigo">Código de invitación
-        <input id="register-codigo" name="codigo" type="password" maxlength="256" autocomplete="off">
-      </label>
-      <p id="register-error" class="login-error" role="alert" hidden></p>
+
+  <form class="auth-view" data-vista="registro" novalidate hidden>
+    <label class="f">Correo electrónico
+      <input name="email" type="email" required maxlength="254" autocomplete="email" autocapitalize="none" spellcheck="false" placeholder="nombre@ejemplo.com">
+    </label>
+    <label class="f">Nombre de usuario
+      <input name="usuario" type="text" required minlength="3" maxlength="32" autocomplete="username" autocapitalize="none" spellcheck="false">
+      <small class="field-hint">De 3 a 32 caracteres: letras, números, punto, guion o guion bajo.</small>
+    </label>
+    <label class="f">Contraseña
+      <span class="pass-wrap"><input name="password" type="password" required minlength="8" maxlength="256" autocomplete="new-password"><button type="button" class="pass-toggle" aria-label="Mostrar contraseña" aria-pressed="false">Ver</button></span>
+      <small class="field-hint">Mínimo 8 caracteres.</small>
+    </label>
+    <label class="f">Repetí la contraseña
+      <span class="pass-wrap"><input name="password2" type="password" required minlength="8" maxlength="256" autocomplete="new-password"><button type="button" class="pass-toggle" aria-label="Mostrar contraseña" aria-pressed="false">Ver</button></span>
+    </label>
+    <button type="submit" class="btn primary block">Crear cuenta</button>
+    <p class="auth-alt">¿Ya tenés cuenta? <button type="button" class="link-btn" data-ir="login">Iniciá sesión</button></p>
+  </form>
+
+  <div class="auth-view" data-vista="pendiente" hidden>
+    <div class="auth-icon" aria-hidden="true">✉️</div>
+    <p class="auth-text">Te enviamos un enlace a <b id="auth-email-pendiente"></b>. Abrilo para activar tu cuenta.</p>
+    <p class="auth-text muted small">¿No llegó? Fijate en spam o promociones. El enlace vence en 24 horas.</p>
+    <button type="button" class="btn ghost block" data-act="reenviar">Reenviar el correo</button>
+    <p class="auth-alt"><button type="button" class="link-btn" data-ir="login">Volver a iniciar sesión</button></p>
+  </div>
+
+  <form class="auth-view" data-vista="olvide" novalidate hidden>
+    <label class="f">Correo electrónico
+      <input name="email" type="email" required maxlength="254" autocomplete="email" autocapitalize="none" spellcheck="false" placeholder="nombre@ejemplo.com">
+    </label>
+    <button type="submit" class="btn primary block">Enviar enlace</button>
+    <p class="auth-alt"><button type="button" class="link-btn" data-ir="login">Volver a iniciar sesión</button></p>
+  </form>
+
+  <form class="auth-view" data-vista="restablecer" novalidate hidden>
+    <label class="f">Contraseña nueva
+      <span class="pass-wrap"><input name="password" type="password" required minlength="8" maxlength="256" autocomplete="new-password"><button type="button" class="pass-toggle" aria-label="Mostrar contraseña" aria-pressed="false">Ver</button></span>
+      <small class="field-hint">Mínimo 8 caracteres.</small>
+    </label>
+    <label class="f">Repetí la contraseña
+      <span class="pass-wrap"><input name="password2" type="password" required minlength="8" maxlength="256" autocomplete="new-password"><button type="button" class="pass-toggle" aria-label="Mostrar contraseña" aria-pressed="false">Ver</button></span>
+    </label>
+    <button type="submit" class="btn primary block">Guardar contraseña</button>
+    <p class="auth-alt"><button type="button" class="link-btn" data-ir="login">Volver a iniciar sesión</button></p>
+  </form>
+</dialog>
+
+<!-- ====== AGREGAR CORREO (cuentas creadas antes de pedir correo) ====== -->
+<dialog id="dlg-email" class="dlg dlg-auth" aria-labelledby="email-title">
+  <form id="form-email" novalidate>
+    <h2 id="email-title" class="auth-title">Agregá tu correo</h2>
+    <p class="auth-sub">Lo vas a necesitar para recuperar la contraseña si te la olvidás.</p>
+    <div id="email-msg" class="auth-msg" role="alert" hidden></div>
+    <label class="f">Correo electrónico
+      <input name="email" type="email" required maxlength="254" autocomplete="email" autocapitalize="none" spellcheck="false" placeholder="nombre@ejemplo.com">
+    </label>
+    <div class="auth-actions">
+      <button type="button" class="btn ghost" data-close>Ahora no</button>
+      <button type="submit" class="btn primary">Enviar confirmación</button>
     </div>
-    <footer class="dlg-foot">
-      <button type="submit" id="register-submit" class="btn primary">Crear cuenta</button>
-      <button type="button" id="show-login" class="btn ghost">Ya tengo una cuenta</button>
-    </footer>
   </form>
 </dialog>
 

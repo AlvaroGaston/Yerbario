@@ -1,42 +1,51 @@
 import { db, ensureSchema, completeOwnershipMigration } from '../lib/db.js';
-import { checkAttemptLimit, compareSecret, createSessionCookie, failedAttempt, hashPassword, normalizeUsername, successfulAttempt, validPassword } from '../lib/auth.js';
+import { checkAttemptLimit, failedAttempt, hashPassword, normalizeUsername } from '../lib/auth.js';
+import { MINUTOS_VERIFICAR, crearToken, normalizarEmail, validarContrasenas } from '../lib/cuentas.js';
+import { enviarVerificacion } from '../lib/correo.js';
 import { fail, HttpError, json, methodNotAllowed, readJson } from '../lib/http.js';
 
+// Crea la cuenta sin verificar y manda el correo de confirmación. No inicia sesión:
+// se entra recién al abrir el enlace del correo.
 export default async function handler(req, res) {
   if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
   try {
     checkAttemptLimit(req, 'register');
     const body = await readJson(req);
     if (!body || typeof body !== 'object' || Array.isArray(body)) throw new HttpError(400, 'La solicitud de registro no es válida.');
+    const email = normalizarEmail(body.email);
     const usuario = normalizeUsername(body.usuario);
-    if (!validPassword(body.password)) {
-      failedAttempt(req, 'register');
-      throw new HttpError(400, 'La contraseña debe tener entre 8 y 256 caracteres.');
-    }
+    validarContrasenas(body.password, body.password2);
 
-    // Se ignoran espacios, saltos de línea y comillas en los bordes: suelen colarse al pegar el valor en Vercel.
-    const limpiar = value => typeof value === 'string' ? value.trim().replace(/^(['"])(.*)\1$/s, '$2').trim() : value;
-    const inviteCode = limpiar(process.env.INVITE_CODE);
-    const inviteRequired = Boolean(inviteCode);
-    const inviteValid = inviteRequired && compareSecret(limpiar(body.codigo), inviteCode);
-    const passwordHash = await hashPassword(body.password);
     await ensureSchema();
     const sql = db();
-    const [result] = await sql`SELECT * FROM yerbario_register_user(
-      ${usuario}, ${passwordHash}, ${inviteRequired}, ${inviteValid}
-    )`;
-
-    if (result.error_code) {
+    const [existente] = await sql`SELECT lower(usuario) = ${usuario} AS mismo_usuario FROM usuarios
+      WHERE lower(usuario) = ${usuario} OR lower(email) = ${email} LIMIT 1`;
+    if (existente) {
       failedAttempt(req, 'register');
-      if (result.error_code === 'username_exists') throw new HttpError(409, 'Ese nombre de usuario ya está registrado.');
-      if (result.error_code === 'registration_closed') throw new HttpError(403, 'El registro está cerrado.');
-      throw new HttpError(403, 'El código de invitación no es válido.');
+      throw new HttpError(409, existente.mismo_usuario ? 'Ese nombre de usuario ya está en uso.' : 'Ya hay una cuenta con ese correo.');
     }
 
-    successfulAttempt(req, 'register');
+    const passwordHash = await hashPassword(body.password);
+    let user;
+    try {
+      [user] = await sql`INSERT INTO usuarios (usuario, password_hash, email, email_verificado)
+        VALUES (${usuario}, ${passwordHash}, ${email}, false) RETURNING id`;
+    } catch (err) {
+      if (err.code === '23505') throw new HttpError(409, 'Ese usuario o correo ya está registrado.');
+      throw err;
+    }
+
+    try {
+      const token = await crearToken(sql, user.id, 'verificar', MINUTOS_VERIFICAR);
+      await enviarVerificacion(req, { email, usuario, token });
+    } catch (err) {
+      // Sin correo no se puede activar la cuenta: se borra para poder reintentar con los mismos datos.
+      await sql`DELETE FROM usuarios WHERE id = ${user.id}`;
+      throw err;
+    }
+
     await completeOwnershipMigration();
-    res.setHeader('Set-Cookie', createSessionCookie(result.id));
-    return json(res, 201, { authenticated: true, usuario: result.usuario });
+    return json(res, 201, { pendiente: true, email });
   } catch (err) {
     return fail(res, err, 'api/register');
   }

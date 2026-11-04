@@ -6,6 +6,21 @@ CREATE TABLE IF NOT EXISTS usuarios (
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS usuarios_usuario_lower_idx ON usuarios (lower(usuario));
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS email TEXT;
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS email_verificado BOOLEAN NOT NULL DEFAULT false;
+CREATE UNIQUE INDEX IF NOT EXISTS usuarios_email_lower_idx ON usuarios (lower(email)) WHERE email IS NOT NULL;
+
+-- Enlaces de un solo uso enviados por correo (verificar la cuenta o recuperar la contraseña).
+CREATE TABLE IF NOT EXISTS email_tokens (
+  id BIGSERIAL PRIMARY KEY,
+  user_id BIGINT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+  tipo TEXT NOT NULL CHECK (tipo IN ('verificar', 'recuperar')),
+  token_hash TEXT NOT NULL UNIQUE,
+  expira TIMESTAMPTZ NOT NULL,
+  usado TIMESTAMPTZ,
+  creado TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS email_tokens_user_idx ON email_tokens (user_id, tipo);
 
 CREATE TABLE IF NOT EXISTS yerbas (
   id BIGSERIAL PRIMARY KEY,
